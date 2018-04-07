@@ -13,7 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"go/ast"
-	"go/printer"
+	"goformat/printer"
 	"go/token"
 	"io"
 	"os"

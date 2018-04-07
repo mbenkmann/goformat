@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/parser"
-	"go/printer"
+	"goformat/printer"
 	"go/token"
 	"strings"
 	"testing"

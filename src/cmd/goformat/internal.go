@@ -13,7 +13,7 @@ import (
 	"bytes"
 	"go/ast"
 	"go/parser"
-	"go/printer"
+	"goformat/printer"
 	"go/token"
 	"strings"
 )

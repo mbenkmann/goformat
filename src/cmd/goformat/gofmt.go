@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/parser"
-	"go/printer"
+	"goformat/printer"
 	"go/scanner"
 	"go/token"
 	"io"
