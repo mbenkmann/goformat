@@ -1,9 +1,9 @@
 GOPATH:=$(CURDIR)
 export GOPATH
 
-all: goformat
+all: build
 
-goformat:
+build:
 	go build ./src/cmd/goformat
 
 clean:

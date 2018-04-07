@@ -25,7 +25,7 @@ import (
 
 var (
 	// main operation modes
-	list        = flag.Bool("l", false, "list files whose formatting differs from gofmt's")
+	list        = flag.Bool("l", false, "list files whose formatting differs from goformat's")
 	write       = flag.Bool("w", false, "write result to (source) file instead of stdout")
 	rewriteRule = flag.String("r", "", "rewrite rule (e.g., 'a[b:len(a)] -> a[b:]')")
 	simplifyAST = flag.Bool("s", false, "simplify code")
@@ -54,7 +54,7 @@ func report(err error) {
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: gofmt [flags] [path ...]\n")
+	fmt.Fprintf(os.Stderr, "usage: goformat [flags] [path ...]\n")
 	flag.PrintDefaults()
 }
 
