@@ -4,7 +4,7 @@ export GOPATH
 all: build
 
 build:
-	go build goformat/goformat
+	go install goformat/goformat
 
 clean:
 	rm -f goformat
