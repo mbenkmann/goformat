@@ -12,8 +12,8 @@
             "mode": "debug",
             "program": "${workspaceRoot}/src/goformat/goformat/gofmt.go",
             "args": [
-                "-d",
-                "${workspaceRoot}/src/goformat/goformat/testdata/typealias.input"
+                //"-d",
+                "${workspaceRoot}/src/goformat/goformat/testdata/indent.input"
             ],
             "internalConsoleOptions": "openOnSessionStart",
             "showLog": true,
