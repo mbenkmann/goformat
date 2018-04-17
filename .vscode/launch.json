@@ -13,10 +13,11 @@
             "program": "${workspaceRoot}/src/goformat/goformat/gofmt.go",
             "args": [
                 //"-d",
+                "--style=${workspaceRoot}/src/goformat/goformat/testdata/style1",
                 "${workspaceRoot}/src/goformat/goformat/testdata/indent.input"
             ],
             "internalConsoleOptions": "openOnSessionStart",
-            "showLog": true,
+            "showLog": false,
             "output": "${workspaceRoot}/bin/debug-temp"
         }
    

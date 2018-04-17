@@ -2,19 +2,14 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// TODO(gri): This file and the file src/go/format/internal.go are
-// the same (but for this comment and the package name). Do not modify
-// one without the other. Determine if we can factor out functionality
-// in a public API. See also #11844 for context.
-
 package main
 
 import (
 	"bytes"
 	"go/ast"
 	"go/parser"
-	"goformat/printer"
 	"go/token"
+	"goformat/printer"
 	"strings"
 )
 
@@ -97,12 +92,12 @@ func format(
 	sourceAdj func(src []byte, indent int) []byte,
 	indentAdj int,
 	src []byte,
-	cfg printer.Config,
+	formatOptions *printer.FormatOptions,
 ) ([]byte, error) {
 	if sourceAdj == nil {
 		// Complete source file.
 		var buf bytes.Buffer
-		err := cfg.Fprint(&buf, fset, file)
+		err := printer.Fprint(formatOptions, src, &buf, fset, file)
 		if err != nil {
 			return nil, err
 		}
@@ -143,13 +138,15 @@ func format(
 
 	// Format the source.
 	// Write it without any leading and trailing space.
-	cfg.Indent = indent + indentAdj
+	formatOptionsOverride := printer.FormatOptionsUninitialized()
+	formatOptionsOverride.Next = formatOptions
+	formatOptionsOverride.Indent = indent + indentAdj
 	var buf bytes.Buffer
-	err := cfg.Fprint(&buf, fset, file)
+	err := printer.Fprint(formatOptionsOverride, src, &buf, fset, file)
 	if err != nil {
 		return nil, err
 	}
-	out := sourceAdj(buf.Bytes(), cfg.Indent)
+	out := sourceAdj(buf.Bytes(), formatOptionsOverride.Indent)
 
 	// If the adjusted output is empty, the source
 	// was empty but (possibly) for white space.

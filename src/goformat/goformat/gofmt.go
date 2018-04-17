@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"go/ast"
 	"go/parser"
-	"goformat/printer"
 	"go/scanner"
 	"go/token"
+	"goformat/printer"
 	"io"
 	"io/ioutil"
 	"os"
@@ -31,21 +31,18 @@ var (
 	simplifyAST = flag.Bool("s", false, "simplify code")
 	doDiff      = flag.Bool("d", false, "display diffs instead of rewriting files")
 	allErrors   = flag.Bool("e", false, "report all errors (not just the first 10 on different lines)")
+	style       = flag.String("style", "", "path of a style file or the style code itself")
 
 	// debugging
 	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to this file")
 )
 
-const (
-	tabWidth    = 8
-	printerMode = printer.UseSpaces | printer.TabIndent
-)
-
 var (
-	fileSet    = token.NewFileSet() // per process FileSet
-	exitCode   = 0
-	rewrite    func(*ast.File) *ast.File
-	parserMode parser.Mode
+	fileSet       = token.NewFileSet() // per process FileSet
+	exitCode      = 0
+	rewrite       func(*ast.File) *ast.File
+	parserMode    parser.Mode
+	formatOptions *printer.FormatOptions
 )
 
 func report(err error) {
@@ -69,6 +66,10 @@ func isGoFile(f os.FileInfo) bool {
 	// ignore non-Go files
 	name := f.Name()
 	return !f.IsDir() && !strings.HasPrefix(name, ".") && strings.HasSuffix(name, ".go")
+}
+
+func getFormatOptions() *printer.FormatOptions {
+	return formatOptions
 }
 
 // If in == nil, the source is the contents of the file with the given filename.
@@ -112,7 +113,7 @@ func processFile(filename string, in io.Reader, out io.Writer, stdin bool) error
 		simplify(file)
 	}
 
-	res, err := format(fileSet, file, sourceAdj, indentAdj, src, printer.Config{Mode: printerMode, Tabwidth: tabWidth})
+	res, err := format(fileSet, file, sourceAdj, indentAdj, src, getFormatOptions())
 	if err != nil {
 		return err
 	}
@@ -182,6 +183,31 @@ func main() {
 func gofmtMain() {
 	flag.Usage = usage
 	flag.Parse()
+
+	formatOptions = printer.FormatOptionsDefault()
+	if *style != "" {
+		var err1, err2 error
+		var data []byte
+
+		// try to interpret *style is a filename and read it
+		data, err1 = ioutil.ReadFile(*style)
+		if err1 == nil {
+			*style = string(data)
+		}
+
+		formatOptions, err2 = printer.ParseStyle(*style)
+		if err2 != nil {
+			// If err1 is also != nil, we have to decide which error to report
+			// If the *style string contains any whitespace or =, it's most likely
+			// an actual style, not a path, so report err2 in that case
+			if err1 == nil || strings.ContainsAny(*style, " \t\r\n=") {
+				err1 = err2
+			}
+			fmt.Fprintf(os.Stderr, "parsing style: %s\n", err1)
+			exitCode = 2
+			return
+		}
+	}
 
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)

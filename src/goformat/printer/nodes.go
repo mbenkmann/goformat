@@ -176,6 +176,7 @@ func (p *printer) exprList(prev0 token.Pos, list []ast.Expr, depth int, mode exp
 	// print all list elements
 	prevLine := prev.Line
 	for i, x := range list {
+		p.nodePos = x.Pos()
 		line = p.lineFor(x.Pos())
 
 		// Determine if the next linebreak, if any, needs to use formfeed:
@@ -462,6 +463,7 @@ func (p *printer) fieldList(fields *ast.FieldList, isStruct, isIncomplete bool) 
 		}
 		var line int
 		for i, f := range list {
+			p.nodePos = f.Pos()
 			if i > 0 {
 				p.linebreak(p.lineFor(f.Pos()), 1, ignore, p.linesFrom(line) > 0)
 			}
@@ -506,6 +508,7 @@ func (p *printer) fieldList(fields *ast.FieldList, isStruct, isIncomplete bool) 
 
 		var line int
 		for i, f := range list {
+			p.nodePos = f.Pos()
 			if i > 0 {
 				p.linebreak(p.lineFor(f.Pos()), 1, ignore, p.linesFrom(line) > 0)
 			}
@@ -981,6 +984,7 @@ func (p *printer) stmtList(list []ast.Stmt, nindent int, nextIsRBrace bool) {
 	var line int
 	i := 0
 	for _, s := range list {
+		p.nodePos = s.Pos()
 		// ignore empty statements (was issue 3466)
 		if _, isEmpty := s.(*ast.EmptyStmt); !isEmpty {
 			// nindent == 0 only for lists of switch/select case clauses;
@@ -1561,9 +1565,10 @@ func (p *printer) nodeSize(n ast.Node, maxSize int) (size int) {
 	// nodeSize computation must be independent of particular
 	// style so that we always get the same decision; print
 	// in RawFormat
-	cfg := Config{Mode: RawFormat}
+	formatOptions := FormatOptionsDefault()
+	formatOptions.Mode = RawFormat
 	var buf bytes.Buffer
-	if err := cfg.fprint(&buf, p.fset, n, p.nodeSizes); err != nil {
+	if err := fprint(formatOptions, p.src, &buf, p.fset, n, p.nodeSizes); err != nil {
 		return
 	}
 	if buf.Len() <= maxSize {
@@ -1733,8 +1738,10 @@ func (p *printer) declList(list []ast.Decl) {
 }
 
 func (p *printer) file(src *ast.File) {
+	p.context |= CtxFileHeader
 	p.setComment(src.Doc)
 	p.print(src.Pos(), token.PACKAGE, blank)
+	p.context &= ^CtxFileHeader
 	p.expr(src.Name)
 	p.declList(src.Decls)
 	p.print(newline)

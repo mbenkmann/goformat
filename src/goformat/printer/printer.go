@@ -11,6 +11,7 @@ import (
 	"go/token"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"unicode"
@@ -51,8 +52,9 @@ type commentInfo struct {
 
 type printer struct {
 	// Configuration (does not change after initialization)
-	Config
-	fset *token.FileSet
+	fset          *token.FileSet
+	src           []byte
+	formatOptions *FormatOptions // highest priority end of the options chain
 
 	// Current state
 	output      []byte       // raw printer result
@@ -63,6 +65,7 @@ type printer struct {
 	lastTok     token.Token  // last token printed (token.ILLEGAL if it's whitespace)
 	prevOpen    token.Token  // previous non-brace "open" token (, [, or token.ILLEGAL
 	wsbuf       []whiteSpace // delayed white space
+	context     Context
 
 	// Positions
 	// The out position differs from the pos position when the result
@@ -85,14 +88,17 @@ type printer struct {
 	// Cache of already computed node sizes.
 	nodeSizes map[ast.Node]int
 
+	nodePos token.Pos // Pos() of the current ast.Node being printed
+
 	// Cache of most recently computed line position.
 	cachedPos  token.Pos
 	cachedLine int // line corresponding to cachedPos
 }
 
-func (p *printer) init(cfg *Config, fset *token.FileSet, nodeSizes map[ast.Node]int) {
-	p.Config = *cfg
+func (p *printer) init(src []byte, formatOptions *FormatOptions, fset *token.FileSet, nodeSizes map[ast.Node]int) {
+	p.formatOptions = formatOptions
 	p.fset = fset
+	p.src = src
 	p.pos = token.Position{Line: 1, Column: 1}
 	p.out = token.Position{Line: 1, Column: 1}
 	p.wsbuf = make([]whiteSpace, 0, 16) // whitespace sequences are short
@@ -218,9 +224,28 @@ func (p *printer) writeLineDirective(pos token.Position) {
 func (p *printer) writeIndent() {
 	// use "hard" htabs - indentation columns
 	// must not be discarded by the tabwriter
-	n := p.Config.Indent + p.indent // include base indentation
+	n := p.indent
+	cfg := p.formatOptions.ForContext(p.context)
+	if cfg.Mode&(NoIndent|KeepIndent) != 0 {
+		n = 0
+	}
+	n += cfg.Indent // add base indentation
 	for i := 0; i < n; i++ {
 		p.output = append(p.output, '\t')
+	}
+
+	if cfg.Mode&KeepIndent != 0 {
+		ofs := p.fset.PositionFor(p.nodePos, false).Offset
+		for ofs > 0 && p.src[ofs] != '\n' && p.src[ofs] != '\r' {
+			ofs--
+		}
+		if ofs > 0 {
+			ofs++
+		}
+		for ; p.src[ofs] <= ' '; ofs++ {
+			p.output = append(p.output, p.src[ofs])
+			n++
+		}
 	}
 
 	// update positions
@@ -267,7 +292,7 @@ func (p *printer) writeByte(ch byte, n int) {
 //
 func (p *printer) writeString(pos token.Position, s string, isLit bool) {
 	if p.out.Column == 1 {
-		if p.Config.Mode&SourcePos != 0 {
+		if p.formatOptions.ForContext(p.context).Mode&SourcePos != 0 {
 			p.writeLineDirective(pos)
 		}
 		p.writeIndent()
@@ -721,15 +746,28 @@ func (p *printer) containsLinebreak() bool {
 // newline was written or if a formfeed was dropped from the whitespace buffer.
 //
 func (p *printer) intersperseComments(next token.Position, tok token.Token) (wroteNewline, droppedFF bool) {
+	oldNodePos := p.nodePos
+	defer func(old Context) { p.context = old }(p.context)
+
 	var last *ast.Comment
 	for p.commentBefore(next) {
 		for _, c := range p.comment.List {
+			if c.Text[1] == '/' {
+				p.context &= ^CtxBlockComment
+				p.context |= CtxLineComment
+			} else {
+				p.context |= CtxBlockComment
+				p.context &= ^CtxLineComment
+			}
+			p.nodePos = c.Pos()
 			p.writeCommentPrefix(p.posFor(c.Pos()), next, last, tok)
 			p.writeComment(c)
 			last = c
 		}
 		p.nextComment()
 	}
+
+	p.nodePos = oldNodePos
 
 	if last != nil {
 		// If the last comment is a /*-style comment and the next item
@@ -942,6 +980,7 @@ func (p *printer) print(args ...interface{}) {
 		case token.Pos:
 			if x.IsValid() {
 				p.pos = p.posFor(x) // accurate position of next item
+				p.nodePos = x
 			}
 			continue
 
@@ -1051,6 +1090,8 @@ func getLastComment(n ast.Node) *ast.CommentGroup {
 }
 
 func (p *printer) printNode(node interface{}) error {
+	p.nodePos = node.(ast.Node).Pos()
+
 	// unpack *CommentedNode, if any
 	var comments []*ast.CommentGroup
 	if cnode, ok := node.(*CommentedNode); ok {
@@ -1248,28 +1289,215 @@ func (p *trimmer) Write(data []byte) (n int, err error) {
 // ----------------------------------------------------------------------------
 // Public interface
 
-// A Mode value is a set of flags (or 0). They control printing.
-type Mode uint
+// A Context is a set of flags, set depending on what's currently being printed.
+// The user can specify different formatting options depending on context.
+// If multiple flags are asserted that means the context is the intersection
+// of these flags, e.g. CtxFileHeader|CtxBlockComment means a block comment
+// in the file's header area.
+// Some flags are mutually exclusive, e.g. CtxLineComment and CtxBlockComment.
+type Context uint
 
 const (
-	RawFormat Mode = 1 << iota // do not use a tabwriter; if set, UseSpaces is ignored
-	TabIndent                  // use tabs for indentation independent of UseSpaces
-	UseSpaces                  // use spaces instead of tabs for alignment
-	SourcePos                  // emit //line directives to preserve original source positions
+	CtxLineComment  Context = 1 << iota // line comment, i.e. //...
+	CtxBlockComment                     // block comment i.e. /*...*/
+	CtxFileHeader                       // everything before the "package" keyword
 )
 
-// A Config node controls the output of Fprint.
-type Config struct {
-	Mode     Mode // default: 0
-	Tabwidth int  // default: 8
-	Indent   int  // default: 0 (all code is indented at least by this much)
+// A Mode value is a set of flags (or 0). They control printing.
+type Mode int
+
+const (
+	RawFormat  Mode = 1 << iota // do not use a tabwriter; if set, UseSpaces is ignored
+	TabIndent                   // use tabs for indentation independent of UseSpaces
+	UseSpaces                   // use spaces instead of tabs for alignment
+	SourcePos                   // emit //line directives to preserve original source positions
+	KeepIndent                  // (overrides TabIndent) use original indentation from source
+	NoIndent                    // (overrides TabIndent/KeepIndent but not FormatOptions.Indent) left-align all lines
+)
+
+const (
+	tabWidth    = 8
+	printerMode = UseSpaces | TabIndent
+)
+
+// A FormatOptions node controls the output of Fprint.
+type FormatOptions struct {
+	Next     *FormatOptions // next (lower priority) in the chain of options
+	Context                 // which context these options apply to
+	Mode     Mode           // default: 0, -1 => unset, use Next
+	Tabwidth int            // default: 8, -1 => unset, use Next
+	Indent   int            // default: 0 (add this many Tabwidth sized indents before each line), -1 => unset, use Next
+}
+
+func FormatOptionsUninitialized() *FormatOptions {
+	return &FormatOptions{Mode: -1, Tabwidth: -1, Indent: -1}
+}
+
+func FormatOptionsDefault() *FormatOptions {
+	return &FormatOptions{Mode: printerMode, Tabwidth: tabWidth, Indent: 0}
+}
+
+// Parses a style definition into a linked list of FormatOptions. The last
+// entry in the list is always complete, i.e. has no -1 fields.
+func ParseStyle(style string) (*FormatOptions, error) {
+	buf := make([]byte, len(style))
+	i := 0
+	k := 0
+	space := false
+	for i < len(style) {
+		ch := style[i]
+		// trim end of line comments starting with # or //
+		if ch == '#' || (ch == '/' && i+1 < len(style) && style[i+1] == '/') {
+			for i < len(style) && style[i] != '\n' && style[i] != '\r' {
+				i++
+			}
+			continue
+		}
+
+		if ch <= ' ' {
+			space = true
+		} else {
+			// separate words by 1 space, but glue foo=... and foo[bla,bla] together
+			if space && ch != '[' && ch != ']' && ch != ',' && ch != '=' {
+				buf[k] = ' '
+				k++
+			}
+			buf[k] = ch
+			k++
+			space = (ch == '!') // always insert space after ! to make it a separate word
+		}
+		i++
+	}
+
+	words := strings.Fields(string(buf[:k]))
+
+	fo := FormatOptionsDefault()
+
+	negate := false
+	inContext := true
+
+	for _, w := range words {
+
+		if w == "!" {
+			negate = !negate
+		}
+
+		for i = 0; i < len(w) && w[i] >= 'a' && w[i] <= 'z'; i++ {
+		}
+		prefix := w[:i]
+
+		var bits Context = 0
+		syntaxerror := false
+		if prefix == "comment" {
+			if w == prefix {
+				bits = CtxBlockComment | CtxLineComment // we will split this up later
+			} else if w == "comment[line]" {
+				bits = CtxLineComment
+			} else if w == "comment[block]" {
+				bits = CtxBlockComment
+			} else {
+				syntaxerror = true
+			}
+		} else if prefix == "head" {
+			bits = CtxFileHeader
+		} else if prefix == "indent" {
+			inContext = false
+			if fo.Mode < 0 {
+				fo.Mode = 0
+			}
+			fo.Mode &= ^(TabIndent | KeepIndent | NoIndent)
+			syntaxerror = true
+			if len(w) > len(prefix) {
+				if w[len(prefix)] == '=' {
+					indent_str := w[len(prefix)+1:]
+					if indent_str == "tab" {
+						fo.Mode |= TabIndent | UseSpaces
+						fo.Tabwidth = 8
+						syntaxerror = false
+					} else if indent_str == "keep" {
+						fo.Mode |= TabIndent | UseSpaces | KeepIndent
+						fo.Tabwidth = 8
+						syntaxerror = false
+					} else {
+						indent, err := strconv.Atoi(indent_str)
+						if err == nil && indent >= 0 {
+							syntaxerror = false
+							fo.Tabwidth = indent
+							if indent == 0 {
+								fo.Mode |= NoIndent
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if syntaxerror {
+			return nil, fmt.Errorf("Syntax error: \"%v\"", w)
+		}
+
+		if bits != 0 {
+			if !inContext {
+				inContext = true
+				// need to create new FormatOptions
+				// first split up CtxBlockComment|CtxLineComment into 2 FormatOptions
+				// because the actual interpretation of these bits is AND, not OR
+				if fo.Context&(CtxBlockComment|CtxLineComment) == CtxBlockComment|CtxLineComment {
+					fo_new := &FormatOptions{}
+					*fo_new = *fo
+					fo.Next = fo_new
+					fo_new.Context &= ^CtxLineComment
+					fo.Context &= ^CtxBlockComment
+				}
+
+				fo_new := FormatOptionsUninitialized()
+				fo_new.Next = fo
+				fo = fo_new
+			}
+
+			if negate {
+				// we would need to add a FormatOptions.NotContext field
+				// simply doing fo.Context &= ^bits would not be enough.
+				return nil, fmt.Errorf("! is not implemented yet")
+			} else {
+				fo.Context |= bits
+			}
+		}
+	}
+
+	return fo, nil
+}
+
+// Returns a complete set (i.e. without -1 entries) of FormatOptions for
+// the given context.
+func (fo *FormatOptions) ForContext(ctx Context) *FormatOptions {
+	res := FormatOptionsUninitialized()
+	for res.Mode == -1 || res.Tabwidth == -1 || res.Indent == -1 {
+		if fo == nil {
+			panic("Last entry in printer.FormatOptions chain is incomplete or nil")
+		}
+		for fo.Next != nil && fo.Context&ctx != fo.Context {
+			fo = fo.Next
+		}
+		if res.Mode == -1 && fo.Mode != -1 {
+			res.Mode = fo.Mode
+		}
+		if res.Tabwidth == -1 && fo.Tabwidth != -1 {
+			res.Tabwidth = fo.Tabwidth
+		}
+		if res.Indent == -1 && fo.Indent != -1 {
+			res.Indent = fo.Indent
+		}
+		fo = fo.Next
+	}
+	return res
 }
 
 // fprint implements Fprint and takes a nodesSizes map for setting up the printer state.
-func (cfg *Config) fprint(output io.Writer, fset *token.FileSet, node interface{}, nodeSizes map[ast.Node]int) (err error) {
+func fprint(formatOptions *FormatOptions, src []byte, output io.Writer, fset *token.FileSet, node interface{}, nodeSizes map[ast.Node]int) (err error) {
 	// print node
 	var p printer
-	p.init(cfg, fset, nodeSizes)
+	p.init(src, formatOptions, fset, nodeSizes)
 	if err = p.printNode(node); err != nil {
 		return
 	}
@@ -1284,6 +1512,7 @@ func (cfg *Config) fprint(output io.Writer, fset *token.FileSet, node interface{
 	output = &trimmer{output: output}
 
 	// redirect output through a tabwriter if necessary
+	cfg := p.formatOptions.ForContext(p.context)
 	if cfg.Mode&RawFormat == 0 {
 		minwidth := cfg.Tabwidth
 
@@ -1322,20 +1551,16 @@ type CommentedNode struct {
 	Comments []*ast.CommentGroup
 }
 
-// Fprint "pretty-prints" an AST node to output for a given configuration cfg.
+// Fprint "pretty-prints" an AST node to output for a given set of formatOptions.
 // Position information is interpreted relative to the file set fset.
 // The node type must be *ast.File, *CommentedNode, []ast.Decl, []ast.Stmt,
 // or assignment-compatible to ast.Expr, ast.Decl, ast.Spec, or ast.Stmt.
+// src is the source code from which fset is derived.
 //
-func (cfg *Config) Fprint(output io.Writer, fset *token.FileSet, node interface{}) error {
-	return cfg.fprint(output, fset, node, make(map[ast.Node]int))
-}
-
-// Fprint "pretty-prints" an AST node to output.
-// It calls Config.Fprint with default settings.
-// Note that gofmt uses tabs for indentation but spaces for alignment;
-// use format.Node (package go/format) for output that matches gofmt.
+// formatOptions:
 //
-func Fprint(output io.Writer, fset *token.FileSet, node interface{}) error {
-	return (&Config{Tabwidth: 8}).Fprint(output, fset, node)
+//  * formatOptions must not be nil.
+//  * The last entry in the formatOptions linked list must have all fields != -1.
+func Fprint(formatOptions *FormatOptions, src []byte, output io.Writer, fset *token.FileSet, node interface{}) error {
+	return fprint(formatOptions, src, output, fset, node, make(map[ast.Node]int))
 }

@@ -1,0 +1,3 @@
+indent=20   # Line comment with has
+head// Line comment with doubleslash
+ indent=2

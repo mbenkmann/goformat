@@ -1,4 +1,6 @@
-	package main
+	       /* This is an indent test file
+         */
+  package main
   func main() {
     // 1
   // 2
