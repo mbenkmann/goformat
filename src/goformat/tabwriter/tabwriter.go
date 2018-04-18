@@ -410,10 +410,10 @@ func (b *Writer) format(pos0 int, line0, line1 int) (pos int) {
 			// cell exists in this column
 			c := line[column]
 			// update width
-			if w := c.width + b.padding; w > width {
-				width = w
-			}
 			if c.width > 0 {
+				if w := c.width + b.padding; w > width {
+					width = w
+				}
 				minwidth = b.minwidth
 			}
 			// update discardable
