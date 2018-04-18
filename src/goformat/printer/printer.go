@@ -1380,7 +1380,7 @@ func ParseStyle(style string) (*FormatOptions, error) {
 	fo := FormatOptionsDefault()
 
 	negate := false
-	inContext := true
+	inContext := false
 
 	for _, w := range words {
 
@@ -1515,7 +1515,7 @@ func (cfg *FormatOptions) TabWriterOptions() (minwidth, minwidth_empty, tabwidth
 
 	twmode = tabwriter.DiscardEmptyColumns
 	if cfg.Mode&TabIndent != 0 {
-		minwidth_empty = 0
+		minwidth_empty = 1
 		twmode |= tabwriter.TabIndent
 	}
 
