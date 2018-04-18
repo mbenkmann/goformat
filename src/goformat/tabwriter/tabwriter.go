@@ -90,12 +90,13 @@ type cell struct {
 //
 type Writer struct {
 	// configuration
-	output   io.Writer
-	minwidth int
-	tabwidth int
-	padding  int
-	padbytes [8]byte
-	flags    uint
+	output         io.Writer
+	minwidth       int
+	minwidth_empty int
+	tabwidth       int
+	padding        int
+	padbytes       [8]byte
+	flags          uint
 
 	// current state
 	buf     []byte   // collected text excluding tabs or line breaks
@@ -192,7 +193,9 @@ const (
 // A Writer must be initialized with a call to Init. The first parameter (output)
 // specifies the filter output. The remaining parameters control the formatting:
 //
-//	minwidth	minimal cell width including any padding
+//	minwidth	minimal width of non-empty cells including any padding
+//	minwidth_empty	minimal width of empty cells including any padding
+//                 (this applies in particular to indendation at the start of a line)
 //	tabwidth	width of tab characters (equivalent number of spaces)
 //	padding		padding added to a cell before computing its width
 //	padchar		ASCII char used for padding
@@ -203,12 +206,13 @@ const (
 //			to the tab width in the viewer displaying the result)
 //	flags		formatting control
 //
-func (b *Writer) Init(output io.Writer, minwidth, tabwidth, padding int, padchar byte, flags uint) *Writer {
-	if minwidth < 0 || tabwidth < 0 || padding < 0 {
+func (b *Writer) Init(output io.Writer, minwidth, minwidth_empty, tabwidth, padding int, padchar byte, flags uint) *Writer {
+	if minwidth < 0 || tabwidth < 0 || padding < 0 || minwidth_empty < 0 {
 		panic("negative minwidth, tabwidth, or padding")
 	}
 	b.output = output
 	b.minwidth = minwidth
+	b.minwidth_empty = minwidth_empty
 	b.tabwidth = tabwidth
 	b.padding = padding
 	for i := range b.padbytes {
@@ -226,11 +230,12 @@ func (b *Writer) Init(output io.Writer, minwidth, tabwidth, padding int, padchar
 }
 
 // See ChangeFormat and Init().
-func EncodeOptions(minwidth, tabwidth, padding int, padchar byte, flags uint) []byte {
+func EncodeOptions(minwidth, minwidth_empty, tabwidth, padding int, padchar byte, flags uint) []byte {
 	buf := make([]byte, 0, 8)
 	buf = append(buf, ChangeFormat)
 	// We don't do any bounds checking. Values outside of the range [0,255] are unreasonable.
 	buf = append(buf, byte(minwidth))
+	buf = append(buf, byte(minwidth_empty))
 	buf = append(buf, byte(tabwidth))
 	buf = append(buf, byte(padding))
 	buf = append(buf, padchar)
@@ -245,11 +250,11 @@ func EncodeOptions(minwidth, tabwidth, padding int, padchar byte, flags uint) []
 //
 // ATTENTION! Does not call flush(), but does call reset().
 func (b *Writer) changeFormat(encoded []byte) {
-	if len(encoded) != 5 {
+	if len(encoded) != 6 {
 		return
 	} // ignore garbage
 
-	b.Init(b.output, int(encoded[0]), int(encoded[1]), int(encoded[2]), encoded[3], uint(encoded[4]))
+	b.Init(b.output, int(encoded[0]), int(encoded[1]), int(encoded[2]), int(encoded[3]), encoded[4], uint(encoded[5]))
 }
 
 // debugging support (keep code around)
@@ -394,7 +399,8 @@ func (b *Writer) format(pos0 int, line0, line1 int) (pos int) {
 		line0 = this
 
 		// column block begin
-		width := b.minwidth // minimal column width
+		minwidth := b.minwidth_empty
+		width := 0
 		discardable := true // true if all cells in this column are empty and "soft"
 		for ; this < line1; this++ {
 			line = b.lines[this]
@@ -407,12 +413,19 @@ func (b *Writer) format(pos0 int, line0, line1 int) (pos int) {
 			if w := c.width + b.padding; w > width {
 				width = w
 			}
+			if c.width > 0 {
+				minwidth = b.minwidth
+			}
 			// update discardable
 			if c.width > 0 || c.htab {
 				discardable = false
 			}
 		}
 		// column block end
+
+		if minwidth > width {
+			width = minwidth
+		}
 
 		// discard empty columns if necessary
 		if discardable && b.flags&DiscardEmptyColumns != 0 {
@@ -642,6 +655,6 @@ func (b *Writer) Write(buf []byte) (n int, err error) {
 // NewWriter allocates and initializes a new tabwriter.Writer.
 // The parameters are the same as for the Init function.
 //
-func NewWriter(output io.Writer, minwidth, tabwidth, padding int, padchar byte, flags uint) *Writer {
-	return new(Writer).Init(output, minwidth, tabwidth, padding, padchar, flags)
+func NewWriter(output io.Writer, minwidth, minwidth_empty, tabwidth, padding int, padchar byte, flags uint) *Writer {
+	return new(Writer).Init(output, minwidth, minwidth_empty, tabwidth, padding, padchar, flags)
 }

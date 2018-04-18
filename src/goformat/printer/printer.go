@@ -219,8 +219,8 @@ func (p *printer) writeIndent() {
 	// If options have changed, output change command for tabwriter (unless RawFormat)
 	if cfg.Mode&RawFormat == 0 && !cfg.Equals(p.currentFormatOptions) {
 		if p.currentFormatOptions != nil { // don't change options when we get here the first time
-			minwidth, tabwidth, padding, padchar, twmode := cfg.TabWriterOptions()
-			p.output = append(p.output, tabwriter.EncodeOptions(minwidth, tabwidth, padding, padchar, twmode)...)
+			minwidth, minwidth_empty, tabwidth, padding, padchar, twmode := cfg.TabWriterOptions()
+			p.output = append(p.output, tabwriter.EncodeOptions(minwidth, minwidth_empty, tabwidth, padding, padchar, twmode)...)
 		}
 		p.currentFormatOptions = cfg
 	}
@@ -1504,8 +1504,9 @@ func (fo *FormatOptions) ForContext(ctx Context) *FormatOptions {
 }
 
 // Returns arguments for tabwriter.NewWriter() corresponding to these FormatOptions
-func (cfg *FormatOptions) TabWriterOptions() (minwidth, tabwidth, padding int, padchar byte, twmode uint) {
-	minwidth = cfg.Tabwidth
+func (cfg *FormatOptions) TabWriterOptions() (minwidth, minwidth_empty, tabwidth, padding int, padchar byte, twmode uint) {
+	minwidth = 0                  // min width of a non-empty column
+	minwidth_empty = cfg.Tabwidth // width of 1 indentation step
 
 	padchar = byte('\t')
 	if cfg.Mode&UseSpaces != 0 {
@@ -1514,12 +1515,12 @@ func (cfg *FormatOptions) TabWriterOptions() (minwidth, tabwidth, padding int, p
 
 	twmode = tabwriter.DiscardEmptyColumns
 	if cfg.Mode&TabIndent != 0 {
-		minwidth = 0
+		minwidth_empty = 0
 		twmode |= tabwriter.TabIndent
 	}
 
 	padding = 1
-	tabwidth = cfg.Tabwidth
+	tabwidth = 8
 	return
 }
 
@@ -1544,8 +1545,8 @@ func fprint(formatOptions *FormatOptions, src []byte, output io.Writer, fset *to
 	// redirect output through a tabwriter if necessary
 	cfg := p.formatOptions.ForContext(0)
 	if cfg.Mode&RawFormat == 0 {
-		minwidth, tabwidth, padding, padchar, twmode := cfg.TabWriterOptions()
-		output = tabwriter.NewWriter(output, minwidth, tabwidth, padding, padchar, twmode)
+		minwidth, minwidth_empty, tabwidth, padding, padchar, twmode := cfg.TabWriterOptions()
+		output = tabwriter.NewWriter(output, minwidth, minwidth_empty, tabwidth, padding, padchar, twmode)
 	}
 
 	// write printer result via tabwriter/trimmer to output
