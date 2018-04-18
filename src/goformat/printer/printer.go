@@ -1317,19 +1317,20 @@ const (
 const (
 	tabWidth    = 8
 	printerMode = UseSpaces | TabIndent
+	SeeNext     = -32768
 )
 
 // A FormatOptions node controls the output of Fprint.
 type FormatOptions struct {
 	Next     *FormatOptions // next (lower priority) in the chain of options
 	Context                 // which context these options apply to
-	Mode     Mode           // default: 0, -1 => unset, use Next
-	Tabwidth int            // default: 8, -1 => unset, use Next
-	Indent   int            // default: 0 (add this many Tabwidth sized indents before each line), -1 => unset, use Next
+	Mode     Mode           // default: 0, SeeNext => unset, use Next
+	Tabwidth int            // default: 8, this is the width of 1 indentation step, SeeNext => unset, use Next
+	Indent   int            // default: 0 (add this many Tabwidth sized indents before each line), SeeNext => unset, use Next
 }
 
 func FormatOptionsUninitialized() *FormatOptions {
-	return &FormatOptions{Mode: -1, Tabwidth: -1, Indent: -1}
+	return &FormatOptions{Mode: SeeNext, Tabwidth: SeeNext, Indent: SeeNext}
 }
 
 func FormatOptionsDefault() *FormatOptions {
@@ -1343,7 +1344,7 @@ func (fo *FormatOptions) Equals(fo2 *FormatOptions) bool {
 }
 
 // Parses a style definition into a linked list of FormatOptions. The last
-// entry in the list is always complete, i.e. has no -1 fields.
+// entry in the list is always complete, i.e. has no SeeNext fields.
 func ParseStyle(style string) (*FormatOptions, error) {
 	buf := make([]byte, len(style))
 	i := 0
@@ -1477,24 +1478,24 @@ func ParseStyle(style string) (*FormatOptions, error) {
 	return fo, nil
 }
 
-// Returns a complete set (i.e. without -1 entries) of FormatOptions for
+// Returns a complete set (i.e. without SeeNext entries) of FormatOptions for
 // the given context.
 func (fo *FormatOptions) ForContext(ctx Context) *FormatOptions {
 	res := FormatOptionsUninitialized()
-	for res.Mode == -1 || res.Tabwidth == -1 || res.Indent == -1 {
+	for res.Mode == SeeNext || res.Tabwidth == SeeNext || res.Indent == SeeNext {
 		if fo == nil {
 			panic("Last entry in printer.FormatOptions chain is incomplete or nil")
 		}
 		for fo.Next != nil && fo.Context&ctx != fo.Context {
 			fo = fo.Next
 		}
-		if res.Mode == -1 && fo.Mode != -1 {
+		if res.Mode == SeeNext && fo.Mode != SeeNext {
 			res.Mode = fo.Mode
 		}
-		if res.Tabwidth == -1 && fo.Tabwidth != -1 {
+		if res.Tabwidth == SeeNext && fo.Tabwidth != SeeNext {
 			res.Tabwidth = fo.Tabwidth
 		}
-		if res.Indent == -1 && fo.Indent != -1 {
+		if res.Indent == SeeNext && fo.Indent != SeeNext {
 			res.Indent = fo.Indent
 		}
 		fo = fo.Next
@@ -1577,7 +1578,7 @@ type CommentedNode struct {
 // formatOptions:
 //
 //  * formatOptions must not be nil.
-//  * The last entry in the formatOptions linked list must have all fields != -1.
+//  * The last entry in the formatOptions linked list must have all fields != SeeNext.
 func Fprint(formatOptions *FormatOptions, src []byte, output io.Writer, fset *token.FileSet, node interface{}) error {
 	return fprint(formatOptions, src, output, fset, node, make(map[ast.Node]int))
 }
