@@ -32,6 +32,7 @@ var (
 	doDiff      = flag.Bool("d", false, "display diffs instead of rewriting files")
 	allErrors   = flag.Bool("e", false, "report all errors (not just the first 10 on different lines)")
 	style       = flag.String("style", "", "path of a style file or the style code itself")
+	fragmentOk  = flag.Bool("fragment", false, "accept incomplete code fragments when parsing files (always on for stdin)")
 
 	// debugging
 	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to this file")
@@ -158,7 +159,7 @@ func processFile(filename string, in io.Reader, out io.Writer, stdin bool) error
 
 func visitFile(path string, f os.FileInfo, err error) error {
 	if err == nil && isGoFile(f) {
-		err = processFile(path, nil, os.Stdout, false)
+		err = processFile(path, nil, os.Stdout, *fragmentOk)
 	}
 	// Don't complain if a file was deleted in the meantime (i.e.
 	// the directory changed concurrently while running gofmt).
@@ -244,7 +245,7 @@ func gofmtMain() {
 		case dir.IsDir():
 			walkDir(path)
 		default:
-			if err := processFile(path, nil, os.Stdout, false); err != nil {
+			if err := processFile(path, nil, os.Stdout, *fragmentOk); err != nil {
 				report(err)
 			}
 		}
