@@ -209,18 +209,6 @@ func (p *printer) lineFor(pos token.Pos) int {
 	return p.cachedLine
 }
 
-// writeLineDirective writes a //line directive if necessary.
-func (p *printer) writeLineDirective(pos token.Position) {
-	if pos.IsValid() && (p.out.Line != pos.Line || p.out.Filename != pos.Filename) {
-		p.output = append(p.output, tabwriter.Escape) // protect '\n' in //line from tabwriter interpretation
-		p.output = append(p.output, fmt.Sprintf("//line %s:%d\n", pos.Filename, pos.Line)...)
-		p.output = append(p.output, tabwriter.Escape)
-		// p.out must match the //line directive
-		p.out.Filename = pos.Filename
-		p.out.Line = pos.Line
-	}
-}
-
 // writeIndent writes indentation.
 func (p *printer) writeIndent() {
 	// use "hard" htabs - indentation columns
@@ -307,9 +295,6 @@ func (p *printer) writeByte(ch byte, n int) {
 //
 func (p *printer) writeString(pos token.Position, s string, isLit bool) {
 	if p.out.Column == 1 {
-		if p.formatOptions.ForContext(p.context).Mode&SourcePos != 0 {
-			p.writeLineDirective(pos)
-		}
 		p.writeIndent()
 	}
 
@@ -1325,7 +1310,6 @@ const (
 	RawFormat  Mode = 1 << iota // do not use a tabwriter; if set, UseSpaces is ignored
 	TabIndent                   // use tabs for indentation independent of UseSpaces
 	UseSpaces                   // use spaces instead of tabs for alignment
-	SourcePos                   // emit //line directives to preserve original source positions
 	KeepIndent                  // (overrides TabIndent) use original indentation from source
 	NoIndent                    // (overrides TabIndent/KeepIndent but not FormatOptions.Indent) left-align all lines
 )
