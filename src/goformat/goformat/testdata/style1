@@ -1,6 +1,3 @@
-indent=20   # Line comment with hash
-head// Line comment with doubleslash
- indent=2
-
-comment indent=3
-comment[line] indent=7
+indent=4
+column=10
+comment shift=2

@@ -249,6 +249,10 @@ func (p *printer) writeIndent() {
 			}
 			p.output = append(p.output, tabwriter.Escape)
 		}
+	} else {
+		for i := 0; i < cfg.Shift; i++ {
+			p.output = append(p.output, ' ')
+		}
 	}
 
 	// update positions
@@ -1327,20 +1331,25 @@ type FormatOptions struct {
 	Mode     Mode           // default: 0, SeeNext => unset, use Next
 	Tabwidth int            // default: 8, this is the width of 1 indentation step, SeeNext => unset, use Next
 	Indent   int            // default: 0 (add this many Tabwidth sized indents before each line), SeeNext => unset, use Next
+	Column   int            // default: 0, min width of columns for alignment (excluding indentation which is Tabwidth)
+	Pad      int            // default: 1, number of spaces to add to each column (except indentation)
+	Shift    int            // default: 0, number of spaces to add after indentation
 }
 
 func FormatOptionsUninitialized() *FormatOptions {
-	return &FormatOptions{Mode: SeeNext, Tabwidth: SeeNext, Indent: SeeNext}
+	return &FormatOptions{Mode: SeeNext, Tabwidth: SeeNext, Indent: SeeNext, Column: SeeNext, Pad: SeeNext, Shift: SeeNext}
 }
 
 func FormatOptionsDefault() *FormatOptions {
-	return &FormatOptions{Mode: printerMode, Tabwidth: tabWidth, Indent: 0}
+	return &FormatOptions{Mode: printerMode, Tabwidth: tabWidth, Indent: 0, Column: 0, Pad: 1, Shift: 0}
 }
 
 // Returns true iff the formatting fields of fo and fo2 are equal.
 // Context and Next links are ignored.
 func (fo *FormatOptions) Equals(fo2 *FormatOptions) bool {
-	return fo2 != nil && fo.Mode == fo2.Mode && fo.Tabwidth == fo2.Tabwidth && fo.Indent == fo2.Indent
+	return fo2 != nil && fo.Mode == fo2.Mode && fo.Tabwidth == fo2.Tabwidth &&
+		fo.Indent == fo2.Indent && fo.Column == fo2.Column && fo.Pad == fo2.Pad &&
+		fo.Shift == fo2.Shift
 }
 
 // Parses a style definition into a linked list of FormatOptions. The last
@@ -1436,6 +1445,45 @@ func ParseStyle(style string) (*FormatOptions, error) {
 					}
 				}
 			}
+		} else if prefix == "shift" {
+			inContext = false
+			syntaxerror = true
+			if len(w) > len(prefix) {
+				if w[len(prefix)] == '=' {
+					shift_str := w[len(prefix)+1:]
+					shift, err := strconv.Atoi(shift_str)
+					if err == nil && shift >= 0 {
+						syntaxerror = false
+						fo.Shift = shift
+					}
+				}
+			}
+		} else if prefix == "pad" {
+			inContext = false
+			syntaxerror = true
+			if len(w) > len(prefix) {
+				if w[len(prefix)] == '=' {
+					pad_str := w[len(prefix)+1:]
+					pad, err := strconv.Atoi(pad_str)
+					if err == nil && pad >= 0 {
+						syntaxerror = false
+						fo.Pad = pad
+					}
+				}
+			}
+		} else if prefix == "column" {
+			inContext = false
+			syntaxerror = true
+			if len(w) > len(prefix) {
+				if w[len(prefix)] == '=' {
+					col_str := w[len(prefix)+1:]
+					col, err := strconv.Atoi(col_str)
+					if err == nil && col >= 0 {
+						syntaxerror = false
+						fo.Column = col
+					}
+				}
+			}
 		}
 
 		if syntaxerror {
@@ -1482,7 +1530,8 @@ func ParseStyle(style string) (*FormatOptions, error) {
 // the given context.
 func (fo *FormatOptions) ForContext(ctx Context) *FormatOptions {
 	res := FormatOptionsUninitialized()
-	for res.Mode == SeeNext || res.Tabwidth == SeeNext || res.Indent == SeeNext {
+	for res.Mode == SeeNext || res.Tabwidth == SeeNext || res.Indent == SeeNext ||
+		res.Column == SeeNext || res.Pad == SeeNext || res.Shift == SeeNext {
 		if fo == nil {
 			panic("Last entry in printer.FormatOptions chain is incomplete or nil")
 		}
@@ -1498,6 +1547,15 @@ func (fo *FormatOptions) ForContext(ctx Context) *FormatOptions {
 		if res.Indent == SeeNext && fo.Indent != SeeNext {
 			res.Indent = fo.Indent
 		}
+		if res.Column == SeeNext && fo.Column != SeeNext {
+			res.Column = fo.Column
+		}
+		if res.Pad == SeeNext && fo.Pad != SeeNext {
+			res.Pad = fo.Pad
+		}
+		if res.Shift == SeeNext && fo.Shift != SeeNext {
+			res.Shift = fo.Shift
+		}
 		fo = fo.Next
 	}
 	return res
@@ -1505,7 +1563,7 @@ func (fo *FormatOptions) ForContext(ctx Context) *FormatOptions {
 
 // Returns arguments for tabwriter.NewWriter() corresponding to these FormatOptions
 func (cfg *FormatOptions) TabWriterOptions() (minwidth, minwidth_empty, tabwidth, padding int, padchar byte, twmode uint) {
-	minwidth = 0                  // min width of a non-empty column
+	minwidth = cfg.Column         // min width of a non-empty column
 	minwidth_empty = cfg.Tabwidth // width of 1 indentation step
 
 	padchar = byte('\t')
@@ -1519,7 +1577,7 @@ func (cfg *FormatOptions) TabWriterOptions() (minwidth, minwidth_empty, tabwidth
 		twmode |= tabwriter.TabIndent
 	}
 
-	padding = 1
+	padding = cfg.Pad
 	tabwidth = 8
 	return
 }

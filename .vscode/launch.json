@@ -14,7 +14,7 @@
             "args": [
                 //"-d",
                 "--style=${workspaceRoot}/src/goformat/goformat/testdata/style1",
-                "${workspaceRoot}/src/goformat/goformat/testdata/indent.input"
+                "${workspaceRoot}/src/goformat/goformat/testdata/composites.input"
             ],
             "internalConsoleOptions": "openOnSessionStart",
             "showLog": false,
