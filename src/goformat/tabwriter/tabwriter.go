@@ -225,6 +225,33 @@ func (b *Writer) Init(output io.Writer, minwidth, tabwidth, padding int, padchar
 	return b
 }
 
+// See ChangeFormat and Init().
+func EncodeOptions(minwidth, tabwidth, padding int, padchar byte, flags uint) []byte {
+	buf := make([]byte, 0, 8)
+	buf = append(buf, ChangeFormat)
+	// We don't do any bounds checking. Values outside of the range [0,255] are unreasonable.
+	buf = append(buf, byte(minwidth))
+	buf = append(buf, byte(tabwidth))
+	buf = append(buf, byte(padding))
+	buf = append(buf, padchar)
+	buf = append(buf, byte(flags))
+	buf = append(buf, ChangeFormat)
+	return buf
+}
+
+// Takes an encoded sequence of formatting options as produced by EncodeOptions
+// (but WITHOUT the bracketing ChangeFormat characters) and applies the new
+// settings.
+//
+// ATTENTION! Does not call flush(), but does call reset().
+func (b *Writer) changeFormat(encoded []byte) {
+	if len(encoded) != 5 {
+		return
+	} // ignore garbage
+
+	b.Init(b.output, int(encoded[0]), int(encoded[1]), int(encoded[2]), encoded[3], uint(encoded[4]))
+}
+
 // debugging support (keep code around)
 func (b *Writer) dump() {
 	pos := 0
@@ -425,11 +452,20 @@ func (b *Writer) updateWidth() {
 //
 const Escape = '\xff'
 
+// The formatting options (e.g. tabsize) can be changed in mid stream by
+// writing a sequence encoded with EncodeOptions(). This sequence is
+// always bracketet in ChangeFormat characters and will be removed from
+// the output.
+//
+// The value 0xfe was chosen because it cannot appear in a valid UTF-8 sequence.
+//
+const ChangeFormat = '\xfe'
+
 // Start escaped mode.
 func (b *Writer) startEscape(ch byte) {
 	switch ch {
-	case Escape:
-		b.endChar = Escape
+	default:
+		b.endChar = ch
 	case '<':
 		b.endChar = '>'
 	case '&':
@@ -452,7 +488,10 @@ func (b *Writer) endEscape() {
 	case '>': // tag of zero width
 	case ';':
 		b.cell.width++ // entity, count as one rune
+	case ChangeFormat:
+		b.changeFormat(b.buf)
 	}
+
 	b.pos = len(b.buf)
 	b.endChar = 0
 }
@@ -505,6 +544,7 @@ func (b *Writer) flush() (err error) {
 }
 
 var hbar = []byte("---\n")
+var formatbar = []byte(">>>\n")
 
 // Write writes buf to the writer b.
 // The only errors returned are ones encountered
@@ -554,6 +594,19 @@ func (b *Writer) Write(buf []byte) (n int, err error) {
 				}
 				b.startEscape(Escape)
 
+			case ChangeFormat:
+				b.append(buf[n:i]) // append pending data WITHOUT ChangeFormat escape
+				b.updateWidth()
+				n = i + 1 // consume data including ChangeFormat escape
+				if err = b.Flush(); err != nil {
+					return
+				}
+				if b.flags&Debug != 0 {
+					// indicate reformat point in debug output
+					b.write0(formatbar)
+				}
+				b.startEscape(ChangeFormat)
+
 			case '<', '&':
 				// possibly an html tag/entity
 				if b.flags&FilterHTML != 0 {
@@ -570,7 +623,7 @@ func (b *Writer) Write(buf []byte) (n int, err error) {
 			if ch == b.endChar {
 				// end of tag/entity
 				j := i + 1
-				if ch == Escape && b.flags&StripEscape != 0 {
+				if ch == ChangeFormat || (ch == Escape && b.flags&StripEscape != 0) {
 					j = i // strip Escape
 				}
 				b.append(buf[n:j])

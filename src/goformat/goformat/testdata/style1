@@ -1,3 +1,6 @@
-indent=20   # Line comment with has
+indent=20   # Line comment with hash
 head// Line comment with doubleslash
  indent=2
+
+comment indent=3
+comment[line] indent=7

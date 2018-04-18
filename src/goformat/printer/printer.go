@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"goformat/tabwriter"
 	"io"
 	"os"
 	"strconv"
 	"strings"
-	"text/tabwriter"
 	"unicode"
 )
 
@@ -57,15 +57,16 @@ type printer struct {
 	formatOptions *FormatOptions // highest priority end of the options chain
 
 	// Current state
-	output      []byte       // raw printer result
-	indent      int          // current indentation
-	level       int          // level == 0: outside composite literal; level > 0: inside composite literal
-	mode        pmode        // current printer mode
-	impliedSemi bool         // if set, a linebreak implies a semicolon
-	lastTok     token.Token  // last token printed (token.ILLEGAL if it's whitespace)
-	prevOpen    token.Token  // previous non-brace "open" token (, [, or token.ILLEGAL
-	wsbuf       []whiteSpace // delayed white space
-	context     Context
+	output               []byte       // raw printer result
+	indent               int          // current indentation
+	level                int          // level == 0: outside composite literal; level > 0: inside composite literal
+	mode                 pmode        // current printer mode
+	impliedSemi          bool         // if set, a linebreak implies a semicolon
+	lastTok              token.Token  // last token printed (token.ILLEGAL if it's whitespace)
+	prevOpen             token.Token  // previous non-brace "open" token (, [, or token.ILLEGAL
+	wsbuf                []whiteSpace // delayed white space
+	context              Context
+	currentFormatOptions *FormatOptions // updated at each new line, tracks FO matching context, used to output tabwriter.ChangeFormat
 
 	// Positions
 	// The out position differs from the pos position when the result
@@ -226,6 +227,16 @@ func (p *printer) writeIndent() {
 	// must not be discarded by the tabwriter
 	n := p.indent
 	cfg := p.formatOptions.ForContext(p.context)
+
+	// If options have changed, output change command for tabwriter (unless RawFormat)
+	if cfg.Mode&RawFormat == 0 && !cfg.Equals(p.currentFormatOptions) {
+		if p.currentFormatOptions != nil { // don't change options when we get here the first time
+			minwidth, tabwidth, padding, padchar, twmode := cfg.TabWriterOptions()
+			p.output = append(p.output, tabwriter.EncodeOptions(minwidth, tabwidth, padding, padchar, twmode)...)
+		}
+		p.currentFormatOptions = cfg
+	}
+
 	if cfg.Mode&(NoIndent|KeepIndent) != 0 {
 		n = 0
 	}
@@ -242,9 +253,13 @@ func (p *printer) writeIndent() {
 		if ofs > 0 {
 			ofs++
 		}
-		for ; p.src[ofs] <= ' '; ofs++ {
-			p.output = append(p.output, p.src[ofs])
-			n++
+		if p.src[ofs] <= ' ' {
+			p.output = append(p.output, tabwriter.Escape)
+			for ; p.src[ofs] <= ' '; ofs++ {
+				p.output = append(p.output, p.src[ofs])
+				n++
+			}
+			p.output = append(p.output, tabwriter.Escape)
 		}
 	}
 
@@ -1337,6 +1352,12 @@ func FormatOptionsDefault() *FormatOptions {
 	return &FormatOptions{Mode: printerMode, Tabwidth: tabWidth, Indent: 0}
 }
 
+// Returns true iff the formatting fields of fo and fo2 are equal.
+// Context and Next links are ignored.
+func (fo *FormatOptions) Equals(fo2 *FormatOptions) bool {
+	return fo2 != nil && fo.Mode == fo2.Mode && fo.Tabwidth == fo2.Tabwidth && fo.Indent == fo2.Indent
+}
+
 // Parses a style definition into a linked list of FormatOptions. The last
 // entry in the list is always complete, i.e. has no -1 fields.
 func ParseStyle(style string) (*FormatOptions, error) {
@@ -1403,7 +1424,7 @@ func ParseStyle(style string) (*FormatOptions, error) {
 		} else if prefix == "indent" {
 			inContext = false
 			if fo.Mode < 0 {
-				fo.Mode = 0
+				fo.Mode = printerMode
 			}
 			fo.Mode &= ^(TabIndent | KeepIndent | NoIndent)
 			syntaxerror = true
@@ -1440,16 +1461,6 @@ func ParseStyle(style string) (*FormatOptions, error) {
 			if !inContext {
 				inContext = true
 				// need to create new FormatOptions
-				// first split up CtxBlockComment|CtxLineComment into 2 FormatOptions
-				// because the actual interpretation of these bits is AND, not OR
-				if fo.Context&(CtxBlockComment|CtxLineComment) == CtxBlockComment|CtxLineComment {
-					fo_new := &FormatOptions{}
-					*fo_new = *fo
-					fo.Next = fo_new
-					fo_new.Context &= ^CtxLineComment
-					fo.Context &= ^CtxBlockComment
-				}
-
 				fo_new := FormatOptionsUninitialized()
 				fo_new.Next = fo
 				fo = fo_new
@@ -1463,6 +1474,20 @@ func ParseStyle(style string) (*FormatOptions, error) {
 				fo.Context |= bits
 			}
 		}
+	}
+
+	// We need to split up CtxBlockComment|CtxLineComment into 2 FormatOptions
+	// because the actual interpretation of these bits is AND, not OR
+	fosplit := fo
+	for fosplit != nil {
+		if fosplit.Context&(CtxBlockComment|CtxLineComment) == CtxBlockComment|CtxLineComment {
+			fo_new := &FormatOptions{}
+			*fo_new = *fosplit
+			fosplit.Next = fo_new
+			fo_new.Context &= ^CtxLineComment
+			fosplit.Context &= ^CtxBlockComment
+		}
+		fosplit = fosplit.Next
 	}
 
 	return fo, nil
@@ -1493,6 +1518,26 @@ func (fo *FormatOptions) ForContext(ctx Context) *FormatOptions {
 	return res
 }
 
+// Returns arguments for tabwriter.NewWriter() corresponding to these FormatOptions
+func (cfg *FormatOptions) TabWriterOptions() (minwidth, tabwidth, padding int, padchar byte, twmode uint) {
+	minwidth = cfg.Tabwidth
+
+	padchar = byte('\t')
+	if cfg.Mode&UseSpaces != 0 {
+		padchar = ' '
+	}
+
+	twmode = tabwriter.DiscardEmptyColumns
+	if cfg.Mode&TabIndent != 0 {
+		minwidth = 0
+		twmode |= tabwriter.TabIndent
+	}
+
+	padding = 1
+	tabwidth = cfg.Tabwidth
+	return
+}
+
 // fprint implements Fprint and takes a nodesSizes map for setting up the printer state.
 func fprint(formatOptions *FormatOptions, src []byte, output io.Writer, fset *token.FileSet, node interface{}, nodeSizes map[ast.Node]int) (err error) {
 	// print node
@@ -1512,22 +1557,10 @@ func fprint(formatOptions *FormatOptions, src []byte, output io.Writer, fset *to
 	output = &trimmer{output: output}
 
 	// redirect output through a tabwriter if necessary
-	cfg := p.formatOptions.ForContext(p.context)
+	cfg := p.formatOptions.ForContext(0)
 	if cfg.Mode&RawFormat == 0 {
-		minwidth := cfg.Tabwidth
-
-		padchar := byte('\t')
-		if cfg.Mode&UseSpaces != 0 {
-			padchar = ' '
-		}
-
-		twmode := tabwriter.DiscardEmptyColumns
-		if cfg.Mode&TabIndent != 0 {
-			minwidth = 0
-			twmode |= tabwriter.TabIndent
-		}
-
-		output = tabwriter.NewWriter(output, minwidth, cfg.Tabwidth, 1, padchar, twmode)
+		minwidth, tabwidth, padding, padchar, twmode := cfg.TabWriterOptions()
+		output = tabwriter.NewWriter(output, minwidth, tabwidth, padding, padchar, twmode)
 	}
 
 	// write printer result via tabwriter/trimmer to output

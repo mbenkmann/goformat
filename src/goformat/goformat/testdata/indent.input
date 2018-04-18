@@ -1,6 +1,8 @@
 	       /* This is an indent test file
          */
   package main
+
+  // Blabla.
   func main() {
     // 1
   // 2
