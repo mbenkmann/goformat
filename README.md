@@ -3,7 +3,7 @@ GOFORMAT
 
 NAME
 ----
-goformat - Alternative to gofmt with configurable formatting style (indentation, etc.)
+goformat - Alternative to gofmt with configurable formatting style (indentation etc.)
 
 INSTALLATION
 ------------
@@ -49,10 +49,10 @@ This operation mode is default when processing input from stdin.
 List files whose formatting differs from goformat's on stdout. May be combined with -w so that the reformatted code is written to the original file and then list of changed files is printed to stdout.
 
 ###  -r "rule"
-Apply rewrite rule to code. See section below for explanation of rewrite rules.
+Apply rewrite rule to code. See section below for an explanation of rewrite rules.
         
 ###  -s
-Simplify code without changing its semantics. See the section below for a list of the rewriting rules applied.
+Simplify code without changing its semantics. See the section below for a list of the rules applied.
 
 ### -style file
 ### -style "code"
@@ -63,8 +63,6 @@ Overwrite source file(s) with formatted result instead of printing the code to s
 
 REWRITE RULES
 -------------
-rewrite rule (e.g., '')
-
 The -r option specifies a rewrite rule of the form
 
     pattern -> replacement
@@ -118,6 +116,8 @@ will be simplified to:
 
 STYLE LANGUAGE
 --------------
+
+
 
 AUTHOR
 ------
