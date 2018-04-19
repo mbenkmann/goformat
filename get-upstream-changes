@@ -16,7 +16,7 @@ trap 'rm -r $temp' EXIT
 
 cd $temp || exit 1
 
-git clone -n https://github.com/golang/go.git
+git clone -n https://go.googlesource.com/go
 
 cd go || exit 1
 
