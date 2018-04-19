@@ -1,0 +1,35 @@
+#!/bin/bash
+
+lastdate=2018-04-15
+
+mkdir -p patch
+patchdir="$(readlink -f patch)"
+
+temp=/tmp/upstream
+
+while ! mkdir -m 0700 $temp 2>/dev/null; do
+  temp=/tmp/upstream-$$-$RANDOM
+done
+
+trap 'rm -r $temp' EXIT
+
+cd $temp || exit 1
+
+git clone -n https://github.com/golang/go.git
+
+cd go || exit 1
+
+commits="$(git rev-list --since="$lastdate" master -- src/text/tabwriter src/go/printer src/cmd/gofmt | tac)"
+
+n=1
+for com in $commits; do
+  git format-patch -o "$patchdir" --start-number $n -1 $com
+  n=$(($n + 1))
+done
+
+sed -i 's%src/text/tabwriter%src/goformat/tabwriter%g;s%src/go/printer%src/goformat/printer%g;s%src/cmd/gofmt%src/goformat/goformat%g' "$patchdir"/*.patch
+
+echo "git am --reject --ignore-space-change --ignore-whitespace" "$patchdir"/*.patch
+echo "Fix any conflicts by manually applying remaining hunks from *.rej files"
+echo "Then 'git add' any modified files to index"
+echo "git am --continue"
