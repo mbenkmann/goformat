@@ -9,7 +9,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"goformat/printer"
+	"winterdrache.de/goformat/printer"
 	"strings"
 )
 

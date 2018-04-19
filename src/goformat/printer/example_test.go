@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/parser"
-	"goformat/printer"
+	"winterdrache.de/goformat/printer"
 	"go/token"
 	"strings"
 	"testing"

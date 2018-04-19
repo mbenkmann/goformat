@@ -10,7 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"testing"
-	. "goformat/tabwriter"
+	. "winterdrache.de/goformat/tabwriter"
 )
 
 type buffer struct {

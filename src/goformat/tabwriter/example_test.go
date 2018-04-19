@@ -7,7 +7,7 @@ package tabwriter_test
 import (
 	"fmt"
 	"os"
-	"goformat/tabwriter"
+	"winterdrache.de/goformat/tabwriter"
 )
 
 func ExampleWriter_Init() {

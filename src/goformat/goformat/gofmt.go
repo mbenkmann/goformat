@@ -12,7 +12,6 @@ import (
 	"go/parser"
 	"go/scanner"
 	"go/token"
-	"goformat/printer"
 	"io"
 	"io/ioutil"
 	"os"
@@ -21,6 +20,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"strings"
+	"winterdrache.de/goformat/printer"
 )
 
 var (

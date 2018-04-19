@@ -370,7 +370,7 @@ func identCount(f *ast.File) int {
 func TestSourcePos(t *testing.T) {
 	const src = `
 package p
-import ( "goformat/printer"; "math" )
+import ( "winterdrache.de/goformat/printer"; "math" )
 const pi = 3.14; var x = 0
 type t struct{ x, y, z int; u, v, w float32 }
 func (t *t) foo(a, b, c int) int {

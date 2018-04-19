@@ -9,7 +9,7 @@
 // http://nickgravgaard.com/elastictabstops/index.html.
 //
 // The text/tabwriter package is frozen and is not accepting new features.
-package tabwriter
+package tabwriter // import "winterdrache.de/goformat/tabwriter"
 
 import (
 	"io"

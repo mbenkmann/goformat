@@ -4,8 +4,11 @@ export GOPATH
 all: build
 
 build:
-	go install goformat/goformat
+	go install winterdrache.de/goformat/goformat
 
 clean:
-	rm -f goformat
+	rm -f bin/goformat bin/debug-temp
 
+distclean:
+	rm -rf pkg/* bin/*
+	find -name "*~" -exec rm {} ';'

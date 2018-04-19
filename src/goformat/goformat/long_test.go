@@ -13,7 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"go/ast"
-	"goformat/printer"
+	"winterdrache.de/goformat/printer"
 	"go/token"
 	"io"
 	"os"

@@ -3,18 +3,18 @@
 // license that can be found in the LICENSE file.
 
 // Package printer implements printing of AST nodes.
-package printer
+package printer // import "winterdrache.de/goformat/printer"
 
 import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"goformat/tabwriter"
 	"io"
 	"os"
 	"strconv"
 	"strings"
 	"unicode"
+	"winterdrache.de/goformat/tabwriter"
 )
 
 const (
@@ -111,7 +111,7 @@ func (p *printer) internalError(msg ...interface{}) {
 	if debug {
 		fmt.Print(p.pos.String() + ": ")
 		fmt.Println(msg...)
-		panic("goformat/printer")
+		panic("winterdrache.de/goformat/printer")
 	}
 }
 
@@ -997,7 +997,7 @@ func (p *printer) print(args ...interface{}) {
 
 		default:
 			fmt.Fprintf(os.Stderr, "print: unsupported argument %v (%T)\n", arg, arg)
-			panic("goformat/printer type")
+			panic("winterdrache.de/goformat/printer type")
 		}
 		// data != ""
 
@@ -1182,7 +1182,7 @@ func (p *printer) printNode(node interface{}) error {
 	return nil
 
 unsupported:
-	return fmt.Errorf("goformat/printer: unsupported node type %T", node)
+	return fmt.Errorf("winterdrache.de/goformat/printer: unsupported node type %T", node)
 }
 
 // ----------------------------------------------------------------------------
