@@ -238,4 +238,5 @@ Matthias S. Benkmann, <msb@winterdrache.de> (style configurability)
 
 BUGS, FEATURE REQUESTS
 ----------------------
-Please use the issue tracker at https://github.com/mbenkmann/goformat/issues for bug reports and feature requests.
+Please use the issue tracker at https://github.com/mbenkmann/goformat/issues
+for bug reports and feature requests.

@@ -52,8 +52,7 @@ func report(err error) {
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: goformat [flags] [path ...]\n")
-	flag.PrintDefaults()
+	fmt.Fprint(os.Stderr, usage_text)
 }
 
 func initParserMode() {
