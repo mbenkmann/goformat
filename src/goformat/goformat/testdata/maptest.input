@@ -1,0 +1,17 @@
+package build
+
+var pkgDeps = map[string][]string{
+	"index/suffixarray":     {"L4", "regexp"},
+	"internal/singleflight": {"sync"},
+	"internal/trace":        {"L4", "OS"},
+	"math/big":              {"L4"},
+	"mime":                  {"L4", "OS", "syscall", "internal/syscall/windows/registry"},
+	"mime/quotedprintable":  {"L4"},
+	"net/internal/socktest": {"L4", "OS", "syscall", "internal/syscall/windows"},
+	"net/url":               {"L4"},
+	"plugin":                {"L0", "OS", "CGO"},
+	"runtime/pprof/internal/profile": {"L4", "OS", "compress/gzip", "regexp"},
+	"testing/internal/testdeps":      {"L4", "internal/testlog", "runtime/pprof", "regexp"},
+	"text/scanner":                   {"L4", "OS"},
+	"text/template/parse":            {"L4"},
+}
