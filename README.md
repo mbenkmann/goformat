@@ -206,4 +206,9 @@ applies only to block comments, i.e. /*...*/
 AUTHOR
 ------
 The Go Authors (original gofmt code goformat is based on)
+
 Matthias S. Benkmann, <msb@winterdrache.de> (style configurability)
+
+BUGS, FEATURE REQUESTS
+----------------------
+Please use the issue tracker at https://github.com/mbenkmann/goformat/issues for bug reports and feature requests.
