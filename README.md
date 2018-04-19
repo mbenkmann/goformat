@@ -5,6 +5,16 @@ NAME
 ----
 goformat - Alternative to gofmt with configurable formatting style (indentation, etc.)
 
+INSTALLATION
+------------
+    go get winterdrache.de/goformat/goformat
+  
+or
+  
+     go get github.com/mbenkmann/goformat/goformat
+ 
+Either command will install the goformat binary to $GOPATH/bin. Alternatively, clone the git repository and execute `make` at the top level. This will create the goformat binary in the bin/ subdirectory of the cloned repository.
+
 SYNOPSIS
 --------
 
@@ -38,11 +48,11 @@ This operation mode is default when processing input from stdin.
 ###  -l
 List files whose formatting differs from goformat's on stdout. May be combined with -w so that the reformatted code is written to the original file and then list of changed files is printed to stdout.
 
-###  -r rule
+###  -r "rule"
 Apply rewrite rule to code. See section below for explanation of rewrite rules.
         
 ###  -s
-Simplify code without changing its semantics. This
+Simplify code without changing its semantics. See the section below for a list of the rewriting rules applied.
 
 ### -style file
 ### -style "code"
@@ -53,7 +63,20 @@ Overwrite source file(s) with formatted result instead of printing the code to s
 
 REWRITE RULES
 -------------
-rewrite rule (e.g., 'a[b:len(a)] -> a[b:]')
+rewrite rule (e.g., '')
+
+The -r option specifies a rewrite rule of the form
+
+    pattern -> replacement
+    
+where both pattern and replacement are valid Go expressions. In the pattern, single-character lowercase identifiers serve as wildcards matching arbitrary sub-expressions, and those expressions are substituted for the same identifiers in the replacement.
+
+Don't forget to quote the rule to prevent the shell from messing with it.
+
+### Examples
+    gofmt -r 'bytes.Compare(a, b) == 0 -> bytes.Equal(a, b)'
+    gofmt -r 'bytes.Compare(a, b) != 0 -> !bytes.Equal(a, b)'
+    gofmt -r 'a[b:len(a)] -> a[b:]'
 
 CODE SIMPLIFICATION
 -------------------
