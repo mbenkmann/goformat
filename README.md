@@ -116,8 +116,92 @@ will be simplified to:
 
 STYLE LANGUAGE
 --------------
+To specify the default style that is used whenever no more specific style rule is
+applicable, simply write the style settings separated by whitespace, e.g.
+
+    indent=tab shift=2
+
+To specify style options that should only be applied within a certain
+context, write one or more context specifiers followed by the style options,
+e.g.
+
+    indent=tab            # default
+    comment shift=2       # shift comments right by 2 spaces
+    head comment shift=0  # except for comments before the "package" keyword
+
+Rules that occur later in the style file and affect the same context will
+override earlier rules.
+
+Everything following a "#" or "//" until the next line break is a comment,
+e.g.
+
+    # This is a comment.
+    // This is a comment, too.
 
 
+### Style options
+    
+    indent=tab
+
+Every level of indentation is a single tab character. Independent of this
+setting, vertical column alignment is always done with spaces.
+
+    indent=keep
+
+Keep the original indentation. If linebreaks are introduced, the indentation
+from the broken line will be used. For block comments, the closing "*/" will
+always be indented the same way as the opening "/*". Lines consisting only
+of whitespace will not be preserved, even with this setting.
+
+    indent=<number>
+
+Every level of indentation is done with this number of spaces. No tabs will
+be used. 0 is permitted and will result in left-aligned code. Negative
+values are illegal.
+
+    pad=<number>
+
+When doing vertical/column alignment, add this number of spaces at the
+right side of each column. This will most prominently affect // comments on the
+same line as code. E.g.
+
+    a := 1     // Magic number
+    b := 200   // Another magic number
+            ^^^
+           pad=3
+
+Note that padding is only relevant for the longest column. Shorter columns
+will get more spaces because of vertical alignment.
+
+    shift=<number>
+
+Add this number of spaces after the initial indentation, effectively
+shifting the text to the right. Mostly useful for comments.
+
+    column=<number>
+
+When doing column alignment, each column will be padded to at least this
+number of characters. Note that pad=... is applied first, so column=... only
+changes columns that are too short even with pad=...
+          
+### Context specifiers
+
+    head
+
+This context specifier refers to everything up to and including the
+"package" keyword.
+
+    comment
+
+applies to any comment, line or block.
+
+    comment[line]
+
+applies only to line comments, i.e. //...
+
+    comment[block]
+   
+applies only to block comments, i.e. /*...*/
 
 AUTHOR
 ------
