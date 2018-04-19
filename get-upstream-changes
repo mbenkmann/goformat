@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# This is the date I last performed the merge. It is NOT the date of the last commit that was merged
 lastdate=2018-04-15
 
 mkdir -p patch
