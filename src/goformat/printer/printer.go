@@ -57,15 +57,15 @@ type printer struct {
 	formatOptions *FormatOptions // highest priority end of the options chain
 
 	// Current state
-	output       []byte       // raw printer result
-	indent       int          // current indentation
-	level        int          // level == 0: outside composite literal; level > 0: inside composite literal
-	mode         pmode        // current printer mode
-	endAlignment bool         // if set, terminate alignment immediately
-	impliedSemi  bool         // if set, a linebreak implies a semicolon
-	lastTok      token.Token  // last token printed (token.ILLEGAL if it's whitespace)
-	prevOpen     token.Token  // previous non-brace "open" token (, [, or token.ILLEGAL
-	wsbuf        []whiteSpace // delayed white space
+	output               []byte       // raw printer result
+	indent               int          // current indentation
+	level                int          // level == 0: outside composite literal; level > 0: inside composite literal
+	mode                 pmode        // current printer mode
+	endAlignment         bool         // if set, terminate alignment immediately
+	impliedSemi          bool         // if set, a linebreak implies a semicolon
+	lastTok              token.Token  // last token printed (token.ILLEGAL if it's whitespace)
+	prevOpen             token.Token  // previous non-brace "open" token (, [, or token.ILLEGAL
+	wsbuf                []whiteSpace // delayed white space
 	context              Context
 	currentFormatOptions *FormatOptions // updated at each new line, tracks FO matching context, used to output tabwriter.ChangeFormat
 
@@ -1325,6 +1325,8 @@ const (
 	CtxLineComment  Context = 1 << iota // line comment, i.e. //...
 	CtxBlockComment                     // block comment i.e. /*...*/
 	CtxFileHeader                       // everything before the "package" keyword
+	CtxSwitch                           // switch or type switch
+	CtxCase                             // case clause
 )
 
 // A Mode value is a set of flags (or 0). They control printing.
@@ -1354,14 +1356,16 @@ type FormatOptions struct {
 	Column   int            // default: 0, min width of columns for alignment (excluding indentation which is Tabwidth)
 	Pad      int            // default: 1, number of spaces to add to each column (except indentation)
 	Shift    int            // default: 0, number of spaces to add after indentation
+	Enter0   int            // default: 0, indent steps for blocks that gofmt has a default of 0 for
+	Enter    int            // default: 1, indent steps for blocks that gofmt has a default of 1 for
 }
 
 func FormatOptionsUninitialized() *FormatOptions {
-	return &FormatOptions{Mode: SeeNext, Tabwidth: SeeNext, Indent: SeeNext, Column: SeeNext, Pad: SeeNext, Shift: SeeNext}
+	return &FormatOptions{Mode: SeeNext, Tabwidth: SeeNext, Indent: SeeNext, Column: SeeNext, Pad: SeeNext, Shift: SeeNext, Enter0: SeeNext, Enter: SeeNext}
 }
 
 func FormatOptionsDefault() *FormatOptions {
-	return &FormatOptions{Mode: printerMode, Tabwidth: tabWidth, Indent: 0, Column: 0, Pad: 1, Shift: 0}
+	return &FormatOptions{Mode: printerMode, Tabwidth: tabWidth, Indent: 0, Column: 0, Pad: 1, Shift: 0, Enter0: 0, Enter: 1}
 }
 
 // Returns true iff the formatting fields of fo and fo2 are equal.
@@ -1369,7 +1373,7 @@ func FormatOptionsDefault() *FormatOptions {
 func (fo *FormatOptions) Equals(fo2 *FormatOptions) bool {
 	return fo2 != nil && fo.Mode == fo2.Mode && fo.Tabwidth == fo2.Tabwidth &&
 		fo.Indent == fo2.Indent && fo.Column == fo2.Column && fo.Pad == fo2.Pad &&
-		fo.Shift == fo2.Shift
+		fo.Shift == fo2.Shift && fo.Enter0 == fo2.Enter0 && fo.Enter == fo2.Enter
 }
 
 // Parses a style definition into a linked list of FormatOptions. The last
@@ -1435,6 +1439,10 @@ func ParseStyle(style string) (*FormatOptions, error) {
 			}
 		} else if prefix == "head" {
 			bits = CtxFileHeader
+		} else if prefix == "switch" {
+			bits = CtxSwitch
+		} else if prefix == "case" {
+			bits = CtxCase
 		} else if prefix == "indent" {
 			inContext = false
 			if fo.Mode < 0 {
@@ -1501,6 +1509,23 @@ func ParseStyle(style string) (*FormatOptions, error) {
 					if err == nil && col >= 0 {
 						syntaxerror = false
 						fo.Column = col
+					}
+				}
+			}
+		} else if prefix == "enter" {
+			inContext = false
+			syntaxerror = true
+			if len(w) > len(prefix) {
+				if w[len(prefix)] == '=' {
+					num_str := w[len(prefix)+1:]
+					num, err := strconv.Atoi(num_str)
+					if err == nil && num >= 0 {
+						syntaxerror = false
+						// If the user provides an enter= we always apply it consistently.
+						// The distinction between Enter and Enter0 exists only to preserve
+						// gofmt default behaviour in the absence of a style.
+						fo.Enter = num
+						fo.Enter0 = num
 					}
 				}
 			}
@@ -1575,6 +1600,12 @@ func (fo *FormatOptions) ForContext(ctx Context) *FormatOptions {
 		}
 		if res.Shift == SeeNext && fo.Shift != SeeNext {
 			res.Shift = fo.Shift
+		}
+		if res.Enter == SeeNext && fo.Enter != SeeNext {
+			res.Enter = fo.Enter
+		}
+		if res.Enter0 == SeeNext && fo.Enter0 != SeeNext {
+			res.Enter0 = fo.Enter0
 		}
 		fo = fo.Next
 	}

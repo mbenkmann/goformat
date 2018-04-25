@@ -978,7 +978,7 @@ func (p *printer) expr(x ast.Expr) {
 // Extra line breaks between statements in the source are respected but at most one
 // empty line is printed between statements.
 func (p *printer) stmtList(list []ast.Stmt, nindent int, nextIsRBrace bool) {
-	if nindent > 0 {
+	for i := 0; i < nindent; i++ {
 		p.print(indent)
 	}
 	var line int
@@ -1010,7 +1010,7 @@ func (p *printer) stmtList(list []ast.Stmt, nindent int, nextIsRBrace bool) {
 			i++
 		}
 	}
-	if nindent > 0 {
+	for i := 0; i < nindent; i++ {
 		p.print(unindent)
 	}
 }
@@ -1135,6 +1135,22 @@ func (p *printer) indentList(list []ast.Expr) bool {
 	return false
 }
 
+func (p *printer) enter(context Context) (nindent int, oldContext Context) {
+	oldContext = p.context
+	p.context |= context
+	cfg := p.formatOptions.ForContext(p.context)
+	if context&CtxSwitch != 0 {
+		nindent = cfg.Enter0
+	} else {
+		nindent = cfg.Enter
+	}
+	return
+}
+
+func (p *printer) leave(oldContext Context) {
+	p.context = oldContext
+}
+
 func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
 	p.print(stmt.Pos())
 
@@ -1245,6 +1261,7 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
 		}
 
 	case *ast.CaseClause:
+		nindent, oldctx := p.enter(CtxCase)
 		if s.List != nil {
 			p.print(token.CASE, blank)
 			p.exprList(s.Pos(), s.List, 1, 0, s.Colon)
@@ -1252,14 +1269,18 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
 			p.print(token.DEFAULT)
 		}
 		p.print(s.Colon, token.COLON)
-		p.stmtList(s.Body, 1, nextIsRBrace)
+		p.stmtList(s.Body, nindent, nextIsRBrace)
+		p.leave(oldctx)
 
 	case *ast.SwitchStmt:
+		nindent, oldctx := p.enter(CtxSwitch)
 		p.print(token.SWITCH)
 		p.controlClause(false, s.Init, s.Tag, nil)
-		p.block(s.Body, 0)
+		p.block(s.Body, nindent)
+		p.leave(oldctx)
 
 	case *ast.TypeSwitchStmt:
+		nindent, oldctx := p.enter(CtxSwitch)
 		p.print(token.SWITCH)
 		if s.Init != nil {
 			p.print(blank)
@@ -1269,7 +1290,8 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
 		p.print(blank)
 		p.stmt(s.Assign, false)
 		p.print(blank)
-		p.block(s.Body, 0)
+		p.block(s.Body, nindent)
+		p.leave(oldctx)
 
 	case *ast.CommClause:
 		if s.Comm != nil {

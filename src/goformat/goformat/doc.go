@@ -99,7 +99,7 @@ This may result in changes that are incompatible with earlier versions of Go.
 */
 package main
 
-const usage_text=`GOFORMAT
+const usage_text = `GOFORMAT
 ========
 
 NAME
@@ -311,6 +311,13 @@ shifting the text to the right. Mostly useful for comments.
 When doing column alignment, each column will be padded to at least this
 number of characters. Note that pad=... is applied first, so column=... only
 changes columns that are too short even with pad=...
+
+    enter=<number>
+
+After the opening brace of a block, this number of indent steps (each of
+the size specified with indent=...) will be added to the indentation. Note
+that the default is 0 for some contexts (e.g. switch) but 1 for most others.
+There is no global enter=... value corresponding to the default behaviour.
           
 ### Context specifiers
 
@@ -330,6 +337,14 @@ applies only to line comments, i.e. //...
     comment[block]
    
 applies only to block comments, i.e. /*...*/
+
+    switch
+
+applies to switch and type switch statements
+
+    case
+
+applies to case clauses (including the default case)
 
 AUTHOR
 ------
