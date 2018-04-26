@@ -1,0 +1,14 @@
+switch x {
+  case 1: return
+  case 2: panic()
+  case 3:
+  return
+  default: return
+}
+select {
+  case i1 = <-c1: print("received ", i1, " from c1\n")
+  case c2 <- i2: print("sent ", i2, " to c2\n")
+  case a[f()] = <-c4:
+  return
+  default: return
+}

@@ -12,9 +12,9 @@
             "mode": "debug",
             "program": "${workspaceRoot}/src/goformat/goformat/gofmt.go",
             "args": [
-                //"-d",
+                "-fragment",
                 "--style=${workspaceRoot}/src/goformat/goformat/testdata/style1",
-                "${workspaceRoot}/src/goformat/goformat/testdata/composites.input"
+                "${workspaceRoot}/src/goformat/goformat/testdata/selectswitch.input"
             ],
             "internalConsoleOptions": "openOnSessionStart",
             "showLog": false,

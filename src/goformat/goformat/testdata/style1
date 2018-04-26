@@ -1,3 +1,7 @@
 indent=4
 column=10
-comment shift=2
+inlineblocks=keep
+enter=2
+
+comment 
+  shift=2
