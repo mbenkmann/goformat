@@ -977,7 +977,12 @@ func (p *printer) expr(x ast.Expr) {
 // Print the statement list indented, but without a newline after the last statement.
 // Extra line breaks between statements in the source are respected but at most one
 // empty line is printed between statements.
-func (p *printer) stmtList(list []ast.Stmt, nindent int, nextIsRBrace bool) {
+// If newline == false, a blank will be printed before the first statement instead of a newline
+func (p *printer) stmtList(list []ast.Stmt, newline bool, nindent int, nextIsRBrace bool) {
+	minbreaks := 0
+	if newline {
+		minbreaks = 1
+	}
 	for i := 0; i < nindent; i++ {
 		p.print(indent)
 	}
@@ -992,7 +997,8 @@ func (p *printer) stmtList(list []ast.Stmt, nindent int, nextIsRBrace bool) {
 			if len(p.output) > 0 {
 				// only print line break if we are not at the beginning of the output
 				// (i.e., we are not printing only a partial program)
-				p.linebreak(p.lineFor(s.Pos()), 1, ignore, i == 0 || nindent == 0 || p.linesFrom(line) > 0)
+				p.linebreak(p.lineFor(s.Pos()), minbreaks, ignore, i == 0 || nindent == 0 || p.linesFrom(line) > 0)
+				minbreaks = 1 // after the first statement every statement gets a newline
 			}
 			p.recordLine(&line)
 			p.stmt(s, nextIsRBrace && i == len(list)-1)
@@ -1017,9 +1023,27 @@ func (p *printer) stmtList(list []ast.Stmt, nindent int, nextIsRBrace bool) {
 
 // block prints an *ast.BlockStmt; it always spans at least two lines.
 func (p *printer) block(b *ast.BlockStmt, nindent int) {
+	minbreaks := 1
+	newline := true
 	p.print(b.Lbrace, token.LBRACE)
-	p.stmtList(b.List, nindent, true)
-	p.linebreak(p.lineFor(b.Rbrace), 1, ignore, true)
+
+	if p.formatOptions.ForContext(p.context).InlineBlocks == 1 {
+		l1 := p.lineFor(b.Lbrace)
+		l2 := p.lineFor(b.Rbrace)
+		if l1 == l2 {
+			minbreaks = 0
+			newline = false
+			if len(b.List) > 0 {
+				p.print(blank)
+			}
+		}
+	}
+
+	p.stmtList(b.List, newline, nindent, true)
+	printedbreak := p.linebreak(p.lineFor(b.Rbrace), minbreaks, ignore, true)
+	if !printedbreak {
+		p.print(blank)
+	}
 	p.print(b.Rbrace, token.RBRACE)
 }
 
@@ -1269,7 +1293,7 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
 			p.print(token.DEFAULT)
 		}
 		p.print(s.Colon, token.COLON)
-		p.stmtList(s.Body, nindent, nextIsRBrace)
+		p.stmtList(s.Body, true, nindent, nextIsRBrace)
 		p.leave(oldctx)
 
 	case *ast.SwitchStmt:
@@ -1301,7 +1325,7 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
 			p.print(token.DEFAULT)
 		}
 		p.print(s.Colon, token.COLON)
-		p.stmtList(s.Body, 1, nextIsRBrace)
+		p.stmtList(s.Body, true, 1, nextIsRBrace)
 
 	case *ast.SelectStmt:
 		p.print(token.SELECT, blank)

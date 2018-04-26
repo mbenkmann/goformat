@@ -1190,7 +1190,7 @@ func (p *printer) printNode(node interface{}) error {
 				p.indent = 1
 			}
 		}
-		p.stmtList(n, 0, false)
+		p.stmtList(n, true, 0, false)
 	case []ast.Decl:
 		p.declList(n)
 	case *ast.File:
@@ -1348,24 +1348,25 @@ const (
 
 // A FormatOptions node controls the output of Fprint.
 type FormatOptions struct {
-	Next     *FormatOptions // next (lower priority) in the chain of options
-	Context                 // which context these options apply to
-	Mode     Mode           // default: 0, SeeNext => unset, use Next
-	Tabwidth int            // default: 8, this is the width of 1 indentation step, SeeNext => unset, use Next
-	Indent   int            // default: 0 (add this many Tabwidth sized indents before each line), SeeNext => unset, use Next
-	Column   int            // default: 0, min width of columns for alignment (excluding indentation which is Tabwidth)
-	Pad      int            // default: 1, number of spaces to add to each column (except indentation)
-	Shift    int            // default: 0, number of spaces to add after indentation
-	Enter0   int            // default: 0, indent steps for blocks that gofmt has a default of 0 for
-	Enter    int            // default: 1, indent steps for blocks that gofmt has a default of 1 for
+	Next         *FormatOptions // next (lower priority) in the chain of options
+	Context                     // which context these options apply to
+	Mode         Mode           // default: 0, SeeNext => unset, use Next
+	Tabwidth     int            // default: 8, this is the width of 1 indentation step, SeeNext => unset, use Next
+	Indent       int            // default: 0 (add this many Tabwidth sized indents before each line), SeeNext => unset, use Next
+	Column       int            // default: 0, min width of columns for alignment (excluding indentation which is Tabwidth)
+	Pad          int            // default: 1, number of spaces to add to each column (except indentation)
+	Shift        int            // default: 0, number of spaces to add after indentation
+	Enter0       int            // default: 0, indent steps for blocks that gofmt has a default of 0 for
+	Enter        int            // default: 1, indent steps for blocks that gofmt has a default of 1 for
+	InlineBlocks int            // default: 0 (always insert newline after { and before }, 1: respect original formatting
 }
 
 func FormatOptionsUninitialized() *FormatOptions {
-	return &FormatOptions{Mode: SeeNext, Tabwidth: SeeNext, Indent: SeeNext, Column: SeeNext, Pad: SeeNext, Shift: SeeNext, Enter0: SeeNext, Enter: SeeNext}
+	return &FormatOptions{Mode: SeeNext, Tabwidth: SeeNext, Indent: SeeNext, Column: SeeNext, Pad: SeeNext, Shift: SeeNext, Enter0: SeeNext, Enter: SeeNext, InlineBlocks: SeeNext}
 }
 
 func FormatOptionsDefault() *FormatOptions {
-	return &FormatOptions{Mode: printerMode, Tabwidth: tabWidth, Indent: 0, Column: 0, Pad: 1, Shift: 0, Enter0: 0, Enter: 1}
+	return &FormatOptions{Mode: printerMode, Tabwidth: tabWidth, Indent: 0, Column: 0, Pad: 1, Shift: 0, Enter0: 0, Enter: 1, InlineBlocks: 0}
 }
 
 // Returns true iff the formatting fields of fo and fo2 are equal.
@@ -1373,7 +1374,8 @@ func FormatOptionsDefault() *FormatOptions {
 func (fo *FormatOptions) Equals(fo2 *FormatOptions) bool {
 	return fo2 != nil && fo.Mode == fo2.Mode && fo.Tabwidth == fo2.Tabwidth &&
 		fo.Indent == fo2.Indent && fo.Column == fo2.Column && fo.Pad == fo2.Pad &&
-		fo.Shift == fo2.Shift && fo.Enter0 == fo2.Enter0 && fo.Enter == fo2.Enter
+		fo.Shift == fo2.Shift && fo.Enter0 == fo2.Enter0 && fo.Enter == fo2.Enter &&
+		fo.InlineBlocks == fo2.InlineBlocks
 }
 
 // Parses a style definition into a linked list of FormatOptions. The last
@@ -1529,6 +1531,21 @@ func ParseStyle(style string) (*FormatOptions, error) {
 					}
 				}
 			}
+		} else if prefix == "inlineblocks" {
+			inContext = false
+			syntaxerror = true
+			if len(w) > len(prefix) {
+				if w[len(prefix)] == '=' {
+					num_str := w[len(prefix)+1:]
+					if num_str == "keep" {
+						syntaxerror = false
+						fo.InlineBlocks = 1
+					} else if num_str == "never" {
+						syntaxerror = false
+						fo.InlineBlocks = 0
+					}
+				}
+			}
 		}
 
 		if syntaxerror {
@@ -1606,6 +1623,9 @@ func (fo *FormatOptions) ForContext(ctx Context) *FormatOptions {
 		}
 		if res.Enter0 == SeeNext && fo.Enter0 != SeeNext {
 			res.Enter0 = fo.Enter0
+		}
+		if res.InlineBlocks == SeeNext && fo.InlineBlocks != SeeNext {
+			res.InlineBlocks = fo.InlineBlocks
 		}
 		fo = fo.Next
 	}

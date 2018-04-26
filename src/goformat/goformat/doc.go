@@ -318,6 +318,19 @@ After the opening brace of a block, this number of indent steps (each of
 the size specified with indent=...) will be added to the indentation. Note
 that the default is 0 for some contexts (e.g. switch) but 1 for most others.
 There is no global enter=... value corresponding to the default behaviour.
+
+	inlineblocks=keep
+
+If a {...} block in the input has both braces on the same line, do not insert
+newlines after/before the braces. E.g.
+
+	if a == b { return } else { break }
+
+With inlineblocks=keep this would stay on a single line.
+
+	inlineblocks=never
+
+This is the default behaviour which forces newlines after { and before }.
           
 ### Context specifiers
 
