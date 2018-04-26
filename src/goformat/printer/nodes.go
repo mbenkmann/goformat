@@ -977,7 +977,7 @@ func (p *printer) expr(x ast.Expr) {
 // Print the statement list indented, but without a newline after the last statement.
 // Extra line breaks between statements in the source are respected but at most one
 // empty line is printed between statements.
-// If newline == false, a blank will be printed before the first statement instead of a newline
+// If newline == false, a vtab will be printed before the first statement instead of a newline
 func (p *printer) stmtList(list []ast.Stmt, newline bool, nindent int, nextIsRBrace bool) {
 	minbreaks := 0
 	if newline {
@@ -997,7 +997,10 @@ func (p *printer) stmtList(list []ast.Stmt, newline bool, nindent int, nextIsRBr
 			if len(p.output) > 0 {
 				// only print line break if we are not at the beginning of the output
 				// (i.e., we are not printing only a partial program)
-				p.linebreak(p.lineFor(s.Pos()), minbreaks, ignore, i == 0 || nindent == 0 || p.linesFrom(line) > 0)
+				printedbreak := p.linebreak(p.lineFor(s.Pos()), minbreaks, ignore, i == 0 || nindent == 0 || p.linesFrom(line) > 0)
+				if !printedbreak {
+					p.print(vtab)
+				}
 				minbreaks = 1 // after the first statement every statement gets a newline
 			}
 			p.recordLine(&line)
@@ -1033,9 +1036,6 @@ func (p *printer) block(b *ast.BlockStmt, nindent int) {
 		if l1 == l2 {
 			minbreaks = 0
 			newline = false
-			if len(b.List) > 0 {
-				p.print(blank)
-			}
 		}
 	}
 
@@ -1163,7 +1163,7 @@ func (p *printer) enter(context Context) (nindent int, oldContext Context) {
 	oldContext = p.context
 	p.context |= context
 	cfg := p.formatOptions.ForContext(p.context)
-	if context&CtxSwitch != 0 {
+	if context&(CtxSwitch|CtxSelect) != 0 {
 		nindent = cfg.Enter0
 	} else {
 		nindent = cfg.Enter
@@ -1266,11 +1266,25 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
 		p.block(s, 1)
 
 	case *ast.IfStmt:
+		align := false
+		if p.formatOptions.ForContext(p.context).InlineBlocks == 1 {
+			l1 := p.lineFor(s.Cond.Pos())
+			l2 := p.lineFor(s.Body.End())
+			align = l1 == l2
+		}
 		p.print(token.IF)
 		p.controlClause(false, s.Init, s.Cond, nil)
+		if align {
+			p.print(vtab)
+		}
 		p.block(s.Body, 1)
 		if s.Else != nil {
-			p.print(blank, token.ELSE, blank)
+			if align {
+				p.print(vtab)
+			} else {
+				p.print(blank)
+			}
+			p.print(token.ELSE, blank)
 			switch s.Else.(type) {
 			case *ast.BlockStmt, *ast.IfStmt:
 				p.stmt(s.Else, nextIsRBrace)
@@ -1293,7 +1307,16 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
 			p.print(token.DEFAULT)
 		}
 		p.print(s.Colon, token.COLON)
-		p.stmtList(s.Body, true, nindent, nextIsRBrace)
+		newline := true
+		if p.formatOptions.ForContext(p.context).InlineBlocks == 1 {
+			l1 := p.lineFor(s.Colon)
+			l2 := l1
+			if len(s.Body) > 0 {
+				l2 = p.lineFor(s.Body[len(s.Body)-1].End())
+				newline = (l1 != l2)
+			}
+		}
+		p.stmtList(s.Body, newline, nindent, nextIsRBrace)
 		p.leave(oldctx)
 
 	case *ast.SwitchStmt:
@@ -1318,6 +1341,7 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
 		p.leave(oldctx)
 
 	case *ast.CommClause:
+		nindent, oldctx := p.enter(CtxCase)
 		if s.Comm != nil {
 			p.print(token.CASE, blank)
 			p.stmt(s.Comm, false)
@@ -1325,17 +1349,29 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
 			p.print(token.DEFAULT)
 		}
 		p.print(s.Colon, token.COLON)
-		p.stmtList(s.Body, true, 1, nextIsRBrace)
+		newline := true
+		if p.formatOptions.ForContext(p.context).InlineBlocks == 1 {
+			l1 := p.lineFor(s.Colon)
+			l2 := l1
+			if len(s.Body) > 0 {
+				l2 = p.lineFor(s.Body[len(s.Body)-1].End())
+				newline = (l1 != l2)
+			}
+		}
+		p.stmtList(s.Body, newline, nindent, nextIsRBrace)
+		p.leave(oldctx)
 
 	case *ast.SelectStmt:
+		nindent, oldctx := p.enter(CtxSelect)
 		p.print(token.SELECT, blank)
 		body := s.Body
 		if len(body.List) == 0 && !p.commentBefore(p.posFor(body.Rbrace)) {
 			// print empty select statement w/o comments on one line
 			p.print(body.Lbrace, token.LBRACE, body.Rbrace, token.RBRACE)
 		} else {
-			p.block(body, 0)
+			p.block(body, nindent)
 		}
+		p.leave(oldctx)
 
 	case *ast.ForStmt:
 		p.print(token.FOR)

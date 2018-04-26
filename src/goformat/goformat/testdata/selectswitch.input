@@ -1,6 +1,6 @@
 switch x {
   case 1: return
-  case 2: panic()
+  case 200: panic()
   case 3:
   return
   default: return
@@ -12,3 +12,5 @@ select {
   return
   default: return
 }
+if true {return} else {return}
+if false {break} else {break}

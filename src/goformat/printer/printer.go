@@ -1327,6 +1327,7 @@ const (
 	CtxFileHeader                       // everything before the "package" keyword
 	CtxSwitch                           // switch or type switch
 	CtxCase                             // case clause
+	CtxSelect                           // select
 )
 
 // A Mode value is a set of flags (or 0). They control printing.
@@ -1443,6 +1444,8 @@ func ParseStyle(style string) (*FormatOptions, error) {
 			bits = CtxFileHeader
 		} else if prefix == "switch" {
 			bits = CtxSwitch
+		} else if prefix == "select" {
+			bits = CtxSelect
 		} else if prefix == "case" {
 			bits = CtxCase
 		} else if prefix == "indent" {

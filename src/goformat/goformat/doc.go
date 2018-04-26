@@ -321,8 +321,8 @@ There is no global enter=... value corresponding to the default behaviour.
 
 	inlineblocks=keep
 
-If a {...} block in the input has both braces on the same line, do not insert
-newlines after/before the braces. E.g.
+If a {...} or case block in the input has both braces on the same line, do not
+insert newlines after/before the braces/case. E.g.
 
 	if a == b { return } else { break }
 
@@ -330,7 +330,8 @@ With inlineblocks=keep this would stay on a single line.
 
 	inlineblocks=never
 
-This is the default behaviour which forces newlines after { and before }.
+This is the default behaviour which forces newlines after "case:", "default:",
+and "{" and before "}".
           
 ### Context specifiers
 
@@ -353,11 +354,15 @@ applies only to block comments, i.e. /*...*/
 
     switch
 
-applies to switch and type switch statements
+applies to switch and type switch statements.
 
     case
 
 applies to case clauses (including the default case)
+
+	select
+
+applies to select statements.
 
 AUTHOR
 ------
