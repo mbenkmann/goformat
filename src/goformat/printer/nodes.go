@@ -1275,7 +1275,9 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
 		p.print(token.IF)
 		p.controlClause(false, s.Init, s.Cond, nil)
 		if align {
-			p.print(vtab)
+			if len(p.wsbuf) > 0 && p.wsbuf[len(p.wsbuf)-1] == blank {
+				p.wsbuf[len(p.wsbuf)-1] = vtab
+			}
 		}
 		p.block(s.Body, 1)
 		if s.Else != nil {
