@@ -176,8 +176,8 @@ setting, vertical column alignment is always done with spaces.
     indent=keep
 
 Keep the original indentation. If linebreaks are introduced, the indentation
-from the broken line will be used. For block comments, the closing "*/" will
-always be indented the same way as the opening "/*". Lines consisting only
+from the broken line will be used. For block comments, the closing `*/` will
+always be indented the same way as the opening `/*`. Lines consisting only
 of whitespace will not be preserved, even with this setting.
 
     indent=<number>
