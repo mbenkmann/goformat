@@ -1549,6 +1549,8 @@ func ParseStyle(style string) (*FormatOptions, error) {
 					}
 				}
 			}
+		} else {
+			syntaxerror = true
 		}
 
 		if syntaxerror {
