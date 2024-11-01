@@ -1,4 +1,0 @@
-# All files in this directory are generated and
-# won't be added to git (except for this .gitignore file)
-*
-!.gitignore

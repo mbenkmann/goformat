@@ -12,7 +12,7 @@ while ! mkdir -m 0700 $temp 2>/dev/null; do
   temp=/tmp/upstream-$$-$RANDOM
 done
 
-trap 'rm -r $temp' EXIT
+trap 'rm -rf $temp' EXIT
 
 cd $temp || exit 1
 
