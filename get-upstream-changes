@@ -24,7 +24,7 @@ commits="$(git rev-list --since="$lastdate" master -- src/text/tabwriter src/go/
 
 n=1
 for com in $commits; do
-  git format-patch -o "$patchdir" --start-number $n -1 $com
+  git format-patch -o "$patchdir" --start-number $n -1 $com -- src/text/tabwriter/ src/go/printer/ src/cmd/gofmt/
   n=$(($n + 1))
 done
 
