@@ -28,9 +28,9 @@ for com in $commits; do
   n=$(($n + 1))
 done
 
-sed -i 's%src/text/tabwriter%src/goformat/tabwriter%g;s%src/go/printer%src/goformat/printer%g;s%src/cmd/gofmt%src/goformat/goformat%g' "$patchdir"/*.patch
+sed -i 's%src/text/tabwriter%tabwriter%g;s%src/go/printer%printer%g;s%src/cmd/gofmt%goformat%g' "$patchdir"/*.patch
 
-echo "git am --reject --ignore-space-change --ignore-whitespace" "$patchdir"/*.patch
+echo "git am --reject --ignore-space-change --ignore-whitespace" "$patchdir"/'*'.patch
 echo "Fix any conflicts by manually applying remaining hunks from *.rej files"
 echo "Then 'git add' any modified files to index"
 echo "git am --continue"
